@@ -220,10 +220,6 @@ jobs:
           architecture: ${{ matrix.settings.architecture }}
       - name: Install dependencies
         run: yarn install
-      - name: Install test dependencies
-        run: |
-          yarn --cwd __test__/cjs install
-          yarn --cwd __test__/mjs install
       - name: Download artifacts
         uses: actions/download-artifact@v7
         with:
@@ -305,8 +301,6 @@ jobs:
           run: |
             yarn config set --json supportedArchitectures.cpu '["current", "arm64", "x64", "arm"]'
             yarn config set --json supportedArchitectures.libc '["current", "musl", "gnu"]'
-            yarn --cwd __test__/cjs install
-            yarn --cwd __test__/mjs install
             yarn test
   test-wasi:
     name: Test WASI target
@@ -324,10 +318,6 @@ jobs:
         run: |
           yarn config set supportedArchitectures.cpu "wasm32"
           yarn install
-      - name: Install test dependencies
-        run: |
-          yarn --cwd __test__/cjs install
-          yarn --cwd __test__/mjs install
       - name: Download artifacts
         uses: actions/download-artifact@v7
         with:
