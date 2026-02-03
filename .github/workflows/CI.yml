@@ -34,6 +34,7 @@ jobs:
         with:
           node-version: 24
           cache: yarn
+          registry-url: 'https://registry.npmjs.org'
       - name: Install
         uses: dtolnay/rust-toolchain@stable
         with:
