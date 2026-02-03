@@ -1,6 +1,6 @@
-import assert from 'node:assert'
-import { describe, test } from 'node:test'
-import { GenericObjectPool } from '../index.wrapper.mjs'
+const { strict: assert } = require('node:assert');
+const { describe, test } = require('node:test');
+const { GenericObjectPool } = require('resource-pool');
 
 describe('GenericObjectPool', () => {
   test('should create a pool with initial resources', () => {

@@ -1,8 +1,8 @@
 #![deny(clippy::all)]
 
-use napi_derive::napi;
 use napi::bindgen_prelude::*;
 use napi::{JsObject, Ref};
+use napi_derive::napi;
 use std::sync::{Arc, Mutex};
 use tokio::sync::Semaphore;
 
@@ -33,24 +33,32 @@ impl GenericObjectPool {
     // Try to acquire immediately, if not available return error
     match self.semaphore.try_acquire() {
       Ok(_permit) => {
-        // We "forget" the permit because the JS side now "owns" the resource 
+        // We "forget" the permit because the JS side now "owns" the resource
         // until they manually call release().
-        _permit.forget(); 
+        _permit.forget();
 
-        let mut pool = self.pool.lock().map_err(|_| Error::from_reason("Poisoned lock"))?;
-        let js_ref = pool.pop().ok_or_else(|| Error::from_reason("Pool empty despite semaphore"))?;
+        let mut pool = self
+          .pool
+          .lock()
+          .map_err(|_| Error::from_reason("Poisoned lock"))?;
+        let js_ref = pool
+          .pop()
+          .ok_or_else(|| Error::from_reason("Pool empty despite semaphore"))?;
         env.get_reference_value(&js_ref)
       }
-      Err(_) => Err(Error::from_reason("No resources available"))
+      Err(_) => Err(Error::from_reason("No resources available")),
     }
   }
 
   #[napi]
   pub fn release(&self, env: Env, resource: JsObject) -> Result<()> {
     let js_ref = env.create_reference(resource)?;
-    let mut pool = self.pool.lock().map_err(|_| Error::from_reason("Poisoned lock"))?;
+    let mut pool = self
+      .pool
+      .lock()
+      .map_err(|_| Error::from_reason("Poisoned lock"))?;
     pool.push(js_ref);
-    
+
     // Manually add a permit back since we "forgot" it during acquire
     self.semaphore.add_permits(1);
     Ok(())
@@ -59,9 +67,12 @@ impl GenericObjectPool {
   #[napi]
   pub fn add(&self, env: Env, resource: JsObject) -> Result<()> {
     let js_ref = env.create_reference(resource)?;
-    let mut pool = self.pool.lock().map_err(|_| Error::from_reason("Poisoned lock"))?;
+    let mut pool = self
+      .pool
+      .lock()
+      .map_err(|_| Error::from_reason("Poisoned lock"))?;
     pool.push(js_ref);
-    
+
     // Increasing pool capacity at runtime
     self.semaphore.add_permits(1);
     Ok(())
@@ -73,7 +84,10 @@ impl GenericObjectPool {
     match self.semaphore.try_acquire() {
       Ok(permit) => {
         permit.forget(); // Permanently remove this permit's slot
-        let mut pool = self.pool.lock().map_err(|_| Error::from_reason("Poisoned lock"))?;
+        let mut pool = self
+          .pool
+          .lock()
+          .map_err(|_| Error::from_reason("Poisoned lock"))?;
         pool.pop();
         Ok(true)
       }

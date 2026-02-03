@@ -1,7 +1,7 @@
 name: CI
 env:
   DEBUG: napi:*
-  APP_NAME: .
+  APP_NAME: resource_pool
   MACOSX_DEPLOYMENT_TARGET: '10.13'
   CARGO_INCREMENTAL: '1'
 'on':
@@ -139,6 +139,8 @@ jobs:
           path: |
             ${{ env.APP_NAME }}.*.node
             ${{ env.APP_NAME }}.*.wasm
+            ${{ env.APP_NAME }}.wasi.cjs
+            ${{ env.APP_NAME }}.wasi-browser.js
           if-no-files-found: error
   build-freebsd:
     runs-on: ubuntu-latest
@@ -185,6 +187,7 @@ jobs:
         with:
           name: bindings-freebsd
           path: ${{ env.APP_NAME }}.*.node
+
           if-no-files-found: error
   test-macOS-windows-binding:
     name: Test bindings on ${{ matrix.settings.target }} - node@${{ matrix.node }}
@@ -218,13 +221,17 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: yarn
           architecture: ${{ matrix.settings.architecture }}
-      - name: Install dependencies
-        run: yarn install
       - name: Download artifacts
         uses: actions/download-artifact@v7
         with:
           name: bindings-${{ matrix.settings.target }}
           path: .
+      - name: Install dependencies
+        run: yarn install
+      - name: Install test dependencies
+        run: |
+          cd __test__/cjs && yarn install --no-immutable && cd ../..
+          cd __test__/mjs && yarn install --no-immutable && cd ../..
       - name: List packages
         run: ls -R .
         shell: bash
@@ -273,16 +280,16 @@ jobs:
               console.log('IMAGE=node:${{ matrix.node }}-slim')
             }
           " >> $GITHUB_OUTPUT
-      - name: Install dependencies
-        run: |
-          yarn config set --json supportedArchitectures.cpu '["current", "arm64", "x64", "arm"]'
-          yarn config set --json supportedArchitectures.libc '["current", "musl", "gnu"]'
-          yarn install
       - name: Download artifacts
         uses: actions/download-artifact@v7
         with:
           name: bindings-${{ matrix.target }}
           path: .
+      - name: Install dependencies
+        run: |
+          yarn config set --json supportedArchitectures.cpu '["current", "arm64", "x64", "arm"]'
+          yarn config set --json supportedArchitectures.libc '["current", "musl", "gnu"]'
+          yarn install
       - name: List packages
         run: ls -R .
         shell: bash
@@ -298,7 +305,12 @@ jobs:
         with:
           image: ${{ steps.docker.outputs.IMAGE }}
           options: '-v ${{ github.workspace }}:${{ github.workspace }} -w ${{ github.workspace }} --platform ${{ steps.docker.outputs.PLATFORM }}'
-          run: yarn test
+          run: |
+            yarn config set --json supportedArchitectures.cpu '["current", "arm64", "x64", "arm"]'
+            yarn config set --json supportedArchitectures.libc '["current", "musl", "gnu"]'
+            cd __test__/cjs && yarn install --no-immutable && cd ../..
+            cd __test__/mjs && yarn install --no-immutable && cd ../..
+            yarn test
   test-wasi:
     name: Test WASI target
     needs:
@@ -311,15 +323,21 @@ jobs:
         with:
           node-version: 24
           cache: yarn
-      - name: Install dependencies
-        run: |
-          yarn config set supportedArchitectures.cpu "wasm32"
-          yarn install
       - name: Download artifacts
         uses: actions/download-artifact@v7
         with:
           name: bindings-wasm32-wasip1-threads
           path: .
+      - name: Install dependencies
+        run: |
+          yarn config set supportedArchitectures.cpu "wasm32"
+          yarn install
+      - name: Install test dependencies
+        env:
+          YARN_ENABLE_HARDENED_MODE: 0
+        run: |
+          cd __test__/cjs && yarn install --no-immutable && cd ../..
+          cd __test__/mjs && yarn install --no-immutable && cd ../..
       - name: List packages
         run: ls -R .
         shell: bash
@@ -327,6 +345,7 @@ jobs:
         run: yarn test
         env:
           NAPI_RS_FORCE_WASI: 1
+          YARN_ENABLE_HARDENED_MODE: 0
   publish:
     name: Publish
     runs-on: ubuntu-latest
@@ -354,6 +373,11 @@ jobs:
         uses: actions/download-artifact@v7
         with:
           path: artifacts
+      - name: Move WASI files
+        run: |
+          mv artifacts/bindings-wasm32-wasip1-threads/resource_pool.wasi.cjs .
+          mv artifacts/bindings-wasm32-wasip1-threads/resource_pool.wasi-browser.js .
+        shell: bash
       - name: Move artifacts
         run: yarn artifacts
       - name: List packages

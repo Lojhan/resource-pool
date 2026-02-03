@@ -1,4 +1,4 @@
-import nativeModule from './index.js'
+const nativeModule = require('./index.js')
 
 const NativePool = nativeModule.GenericObjectPool
 
@@ -6,7 +6,7 @@ const NativePool = nativeModule.GenericObjectPool
  * @template T
  * Type-safe wrapper for a generic resource pool
  */
-export class GenericObjectPool {
+class GenericObjectPool {
   /**
    * @param {T[]} resources - Initial resources in the pool
    */
@@ -80,3 +80,5 @@ export class GenericObjectPool {
     return this.pool.availableCount()
   }
 }
+
+module.exports = { GenericObjectPool }

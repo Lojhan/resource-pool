@@ -1,0 +1,7 @@
+{
+  "type": "module",
+  "name": "resource-pool-mjs-tests",
+  "dependencies": {
+    "resource-pool": "file:../../"
+  }
+}

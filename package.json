@@ -2,7 +2,8 @@
   "name": "resource-pool",
   "version": "0.2.0",
   "description": "A generic resource pool implementation for Node.js using N-API and Rust.",
-  "main": "index.js",
+  "main": "index.wrapper.cjs",
+  "types": "index.wrapper.d.ts",
   "repository": {
     "type": "git",
     "url": "git+ssh://git@github.com/lojhan/resource-pool.git"
@@ -21,10 +22,24 @@
     "index.d.ts",
     "index.js",
     "index.wrapper.mjs",
+    "index.wrapper.cjs",
+    "index.wrapper.d.ts",
     "browser.js"
   ],
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./index.wrapper.d.ts",
+        "default": "./index.wrapper.mjs"
+      },
+      "require": {
+        "types": "./index.wrapper.d.ts",
+        "default": "./index.wrapper.cjs"
+      }
+    }
+  },
   "napi": {
-    "binaryName": ".",
+    "binaryName": "resource_pool",
     "targets": [
       "x86_64-pc-windows-msvc",
       "x86_64-apple-darwin",
@@ -60,8 +75,9 @@
     "format:rs": "cargo fmt",
     "lint": "oxlint .",
     "prepublishOnly": "napi prepublish -t npm",
-    "test": "ava",
-    "test:node": "node --test __test__/pool.test.js",
+    "test:cjs": "node --test \"__test__/cjs/pool.test.cjs\"",
+    "test:mjs": "node --test \"__test__/mjs/pool.test.mjs\"",
+    "test": "npm run test:cjs && npm run test:mjs",
     "preversion": "napi build --platform && git add .",
     "version": "napi version",
     "prepare": "husky"
@@ -73,7 +89,6 @@
     "@oxc-node/core": "^0.0.35",
     "@taplo/cli": "^0.7.0",
     "@tybys/wasm-util": "^0.10.0",
-    "ava": "^6.4.1",
     "chalk": "^5.6.2",
     "husky": "^9.1.7",
     "lint-staged": "^16.1.6",
@@ -92,20 +107,6 @@
     ],
     "*.toml": [
       "taplo format"
-    ]
-  },
-  "ava": {
-    "extensions": {
-      "ts": "module"
-    },
-    "timeout": "2m",
-    "workerThreads": false,
-    "environmentVariables": {
-      "OXC_TSCONFIG_PATH": "./__test__/tsconfig.json"
-    },
-    "nodeArguments": [
-      "--import",
-      "@oxc-node/core/register"
     ]
   },
   "prettier": {
