@@ -39,9 +39,9 @@ if (__nodeFs.existsSync(__wasmDebugFilePath)) {
   __wasmFilePath = __wasmDebugFilePath
 } else if (!__nodeFs.existsSync(__wasmFilePath)) {
   try {
-    __wasmFilePath = require.resolve('resource-pool-wasm32-wasi/resource_pool.wasm32-wasi.wasm')
+    __wasmFilePath = require.resolve('@lojhan/resource-pool-wasm32-wasi/resource_pool.wasm32-wasi.wasm')
   } catch {
-    throw new Error('Cannot find resource_pool.wasm32-wasi.wasm file, and resource-pool-wasm32-wasi package is not installed.')
+    throw new Error('Cannot find resource_pool.wasm32-wasi.wasm file, and @lojhan/resource-pool-wasm32-wasi package is not installed.')
   }
 }
 

@@ -1,1 +1,1 @@
-export * from 'resource-pool-wasm32-wasi'
+export * from '@lojhan/resource-pool-wasm32-wasi'
