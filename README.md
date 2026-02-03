@@ -1,53 +1,275 @@
-# `@napi-rs/package-template`
+# resource-pool
 
-![https://github.com/napi-rs/package-template/actions](https://github.com/napi-rs/package-template/workflows/CI/badge.svg)
+![https://github.com/Lojhan/resource-pool/actions](https://github.com/Lojhan/resource-pool/workflows/CI/badge.svg)
 
-> Template project for writing node packages with napi-rs.
+A high-performance, thread-safe resource pool implementation for Node.js, written in Rust using NAPI-RS. Perfect for managing limited resources like database connections, HTTP clients, or any reusable objects.
 
-# Usage
+## Features
 
-1. Click **Use this template**.
-2. **Clone** your project.
-3. Run `yarn install` to install dependencies.
-4. Run `yarn napi rename -n [@your-scope/package-name] -b [binary-name]` command under the project folder to rename your package.
+- 🚀 **High Performance**: Native Rust implementation for blazing-fast resource management
+- 🔒 **Thread-Safe**: Built with `Arc<Mutex>` and Tokio's `Semaphore` for safe concurrent access
+- ⏱️ **Async Support**: `acquireAsync()` method with optional timeout for async/await workflows
+- 💾 **Type Safe**: Full TypeScript support with generic typing
+- 📦 **Zero Dependencies**: Self-contained, no external dependencies in production
+- ✅ **Comprehensive Tests**: 13+ test cases covering all scenarios
 
-## Install this test package
+## Installation
 
 ```bash
-yarn add @napi-rs/package-template
+npm install resource-pool
+# or
+yarn add resource-pool
 ```
 
-## Ability
+## Quick Start
+
+### Basic Usage
+
+```typescript
+import { GenericObjectPool } from 'resource-pool'
+
+// Create a pool with initial resources
+const resources = [
+  { id: 1, name: 'Connection 1' },
+  { id: 2, name: 'Connection 2' },
+  { id: 3, name: 'Connection 3' },
+]
+const pool = new GenericObjectPool(resources)
+
+// Acquire a resource synchronously
+const resource = pool.acquire()
+console.log(resource) // { id: 1, name: 'Connection 1' }
+
+// Use the resource
+// ...
+
+// Release it back to the pool
+pool.release(resource)
+```
+
+### Async Acquisition with Retry
+
+```typescript
+// Acquire a resource asynchronously (with automatic retry)
+const resource = await pool.acquireAsync()
+
+// Use the resource
+// ...
+
+// Release when done
+pool.release(resource)
+```
+
+### With Timeout
+
+```typescript
+try {
+  // Acquire with 5 second timeout
+  const resource = await pool.acquireAsync(5000)
+  
+  // Use the resource
+  // ...
+  
+  pool.release(resource)
+} catch (err) {
+  console.error('Failed to acquire resource within timeout:', err.message)
+}
+```
+
+### Dynamic Pool Management
+
+```typescript
+const pool = new GenericObjectPool([{ id: 1 }])
+
+// Add resources dynamically
+pool.add({ id: 2 })
+pool.add({ id: 3 })
+
+// Check available count
+console.log(pool.availableCount()) // 3
+
+// Remove an available resource
+const removed = pool.removeOne()
+console.log(removed) // true
+```
+
+## API Reference
+
+### `constructor(resources: T[])`
+
+Create a new resource pool with initial resources.
+
+```typescript
+const pool = new GenericObjectPool([resource1, resource2])
+```
+
+### `acquire(): T`
+
+Acquire a resource from the pool synchronously.
+
+**Throws**: Error if no resources are available.
+
+```typescript
+const resource = pool.acquire()
+```
+
+### `acquireAsync(timeoutMs?: number): Promise<T>`
+
+Acquire a resource asynchronously with automatic retry.
+
+- `timeoutMs` (optional): Timeout in milliseconds. Throws if exceeded.
+- Returns: Promise that resolves with an available resource
+- **Throws**: Error if timeout is exceeded before acquiring a resource
+
+```typescript
+const resource = await pool.acquireAsync()
+const resourceWithTimeout = await pool.acquireAsync(5000)
+```
+
+### `release(resource: T): void`
+
+Release a resource back to the pool.
+
+```typescript
+pool.release(resource)
+```
+
+### `add(resource: T): void`
+
+Add a new resource to the pool.
+
+```typescript
+pool.add(newResource)
+```
+
+### `removeOne(): boolean`
+
+Remove one available resource from the pool.
+
+- Returns: `true` if a resource was removed, `false` if all are in use
+
+```typescript
+const removed = pool.removeOne()
+```
+
+### `availableCount(): number`
+
+Get the number of available resources in the pool.
+
+```typescript
+const count = pool.availableCount()
+```
+
+## Type Safety
+
+The pool is fully generic and works with TypeScript:
+
+```typescript
+interface DatabaseConnection {
+  id: number
+  query(sql: string): Promise<any>
+  close(): Promise<void>
+}
+
+const pool = new GenericObjectPool<DatabaseConnection>([
+  conn1,
+  conn2,
+])
+
+// Full type inference
+const connection = await pool.acquireAsync()
+await connection.query('SELECT * FROM users') // ✓ Type-safe
+connection.nonexistent() // ✗ TypeScript error
+```
+
+## Concurrency Example
+
+```typescript
+// Pool with 2 resources, 3 concurrent operations
+const pool = new GenericObjectPool([{ id: 1 }, { id: 2 }])
+
+const operations = [
+  (async () => {
+    const resource = await pool.acquireAsync()
+    await doWork(resource) // 1s
+    pool.release(resource)
+  })(),
+  (async () => {
+    const resource = await pool.acquireAsync()
+    await doWork(resource) // 1s
+    pool.release(resource)
+  })(),
+  (async () => {
+    const resource = await pool.acquireAsync() // Will wait ~1s
+    await doWork(resource) // 1s
+    pool.release(resource)
+  })(),
+]
+
+await Promise.all(operations)
+// Total time: ~2s (parallelism proven!)
+```
+
+## Performance Characteristics
+
+- **Acquire**: O(1) when resources available, retries with 10ms intervals when pool exhausted
+- **Release**: O(1)
+- **Memory**: Minimal overhead, uses native Rust implementation
+- **Thread Safety**: Lock-free when possible, mutex-protected for concurrent access
+
+## Testing
+
+Run the comprehensive test suite:
+
+```bash
+npm run test:node
+```
+
+Tests include:
+- ✅ Pool creation and basic operations
+- ✅ Acquire/release cycles
+- ✅ Pool exhaustion handling
+- ✅ Dynamic resource management
+- ✅ Type safety with complex objects
+- ✅ 3 parallel operations with 2 resources
+- ✅ Timeout handling
+
+## Development
+
+### Requirements
+
+- Rust 1.70+
+- Node.js 18+
+- Yarn 4+
 
 ### Build
 
-After `yarn build/npm run build` command, you can see `package-template.[darwin|win32|linux].node` file in project root. This is the native addon built from [lib.rs](./src/lib.rs).
+```bash
+yarn build
+```
 
 ### Test
 
-With [ava](https://github.com/avajs/ava), run `yarn test/npm run test` to testing native addon. You can also switch to another testing framework if you want.
+```bash
+yarn test:node  # Native tests
+yarn test       # All tests
+```
 
-### CI
+### Lint & Format
 
-With GitHub Actions, each commit and pull request will be built and tested automatically in [`node@20`, `@node22`] x [`macOS`, `Linux`, `Windows`] matrix. You will never be afraid of the native addon broken in these platforms.
+```bash
+yarn lint
+yarn format
+```
 
-### Release
+## License
 
-Release native package is very difficult in old days. Native packages may ask developers who use it to install `build toolchain` like `gcc/llvm`, `node-gyp` or something more.
+MIT
 
-With `GitHub actions`, we can easily prebuild a `binary` for major platforms. And with `N-API`, we should never be afraid of **ABI Compatible**.
+## Contributing
 
-The other problem is how to deliver prebuild `binary` to users. Downloading it in `postinstall` script is a common way that most packages do it right now. The problem with this solution is it introduced many other packages to download binary that has not been used by `runtime codes`. The other problem is some users may not easily download the binary from `GitHub/CDN` if they are behind a private network (But in most cases, they have a private NPM mirror).
+Contributions are welcome! Please feel free to submit a Pull Request.
 
-In this package, we choose a better way to solve this problem. We release different `npm packages` for different platforms. And add it to `optionalDependencies` before releasing the `Major` package to npm.
-
-`NPM` will choose which native package should download from `registry` automatically. You can see [npm](./npm) dir for details. And you can also run `yarn add @napi-rs/package-template` to see how it works.
-
-## Develop requirements
-
-- Install the latest `Rust`
-- Install `Node.js@10+` which fully supported `Node-API`
-- Install `yarn@1.x`
 
 ## Test in local
 
