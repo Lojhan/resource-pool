@@ -8,15 +8,15 @@ env:
   push:
     branches:
       - main
-    tags-ignore:
-      - '**'
+    tags:
+      - '*'
     paths-ignore:
       - '**/*.md'
       - LICENSE
       - '**/*.gitignore'
       - .editorconfig
       - docs/**
-  pull_request: null
+  pull_request:
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
