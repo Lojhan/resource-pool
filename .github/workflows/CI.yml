@@ -139,6 +139,8 @@ jobs:
           path: |
             ${{ env.APP_NAME }}.*.node
             ${{ env.APP_NAME }}.*.wasm
+            ${{ env.APP_NAME }}.wasi.cjs
+            ${{ env.APP_NAME }}.wasi-browser.js
           if-no-files-found: error
   build-freebsd:
     runs-on: ubuntu-latest
