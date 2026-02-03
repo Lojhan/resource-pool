@@ -1727,36 +1727,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"resource-pool-cjs-tests@workspace:__test__/cjs":
-  version: 0.0.0-use.local
-  resolution: "resource-pool-cjs-tests@workspace:__test__/cjs"
-  dependencies:
-    resource-pool: "file:../../"
-  languageName: unknown
-  linkType: soft
-
-"resource-pool-mjs-tests@workspace:__test__/mjs":
-  version: 0.0.0-use.local
-  resolution: "resource-pool-mjs-tests@workspace:__test__/mjs"
-  dependencies:
-    resource-pool: "file:../../"
-  languageName: unknown
-  linkType: soft
-
-"resource-pool@file:../../::locator=resource-pool-cjs-tests%40workspace%3A__test__%2Fcjs":
-  version: 0.2.0
-  resolution: "resource-pool@file:../../#../../::hash=24496d&locator=resource-pool-cjs-tests%40workspace%3A__test__%2Fcjs"
-  checksum: 10c0/54555e82102fd4620aa665949df44288437894343b09f6cb7cece557bfb3c0dbb18e5a23ab17df4c13632b703d2d37205c6e80ff2b1c59fe6cff2d778a17ee61
-  languageName: node
-  linkType: hard
-
-"resource-pool@file:../../::locator=resource-pool-mjs-tests%40workspace%3A__test__%2Fmjs":
-  version: 0.2.0
-  resolution: "resource-pool@file:../../#../../::hash=24496d&locator=resource-pool-mjs-tests%40workspace%3A__test__%2Fmjs"
-  checksum: 10c0/54555e82102fd4620aa665949df44288437894343b09f6cb7cece557bfb3c0dbb18e5a23ab17df4c13632b703d2d37205c6e80ff2b1c59fe6cff2d778a17ee61
-  languageName: node
-  linkType: hard
-
 "resource-pool@workspace:.":
   version: 0.0.0-use.local
   resolution: "resource-pool@workspace:."

@@ -38,10 +38,6 @@
       }
     }
   },
-  "workspaces": [
-    "__test__/cjs",
-    "__test__/mjs"
-  ],
   "napi": {
     "binaryName": "resource_pool",
     "targets": [
