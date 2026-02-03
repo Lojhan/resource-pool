@@ -24,7 +24,7 @@
     "browser.js"
   ],
   "napi": {
-    "binaryName": ".",
+    "binaryName": "resource_pool",
     "targets": [
       "x86_64-pc-windows-msvc",
       "x86_64-apple-darwin",
@@ -60,8 +60,9 @@
     "format:rs": "cargo fmt",
     "lint": "oxlint .",
     "prepublishOnly": "napi prepublish -t npm",
-    "test": "ava",
-    "test:node": "node --test __test__/pool.test.js",
+    "test:cjs": "node --test ./__test__/*.test.cjs",
+    "test:mjs": "node --test ./__test__/*.test.mjs",
+    "test": "npm run test:cjs && npm run test:mjs",
     "preversion": "napi build --platform && git add .",
     "version": "napi version",
     "prepare": "husky"
@@ -73,7 +74,6 @@
     "@oxc-node/core": "^0.0.35",
     "@taplo/cli": "^0.7.0",
     "@tybys/wasm-util": "^0.10.0",
-    "ava": "^6.4.1",
     "chalk": "^5.6.2",
     "husky": "^9.1.7",
     "lint-staged": "^16.1.6",
@@ -92,20 +92,6 @@
     ],
     "*.toml": [
       "taplo format"
-    ]
-  },
-  "ava": {
-    "extensions": {
-      "ts": "module"
-    },
-    "timeout": "2m",
-    "workerThreads": false,
-    "environmentVariables": {
-      "OXC_TSCONFIG_PATH": "./__test__/tsconfig.json"
-    },
-    "nodeArguments": [
-      "--import",
-      "@oxc-node/core/register"
     ]
   },
   "prettier": {

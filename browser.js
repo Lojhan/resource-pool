@@ -1,1 +1,1 @@
-export * from '.-wasm32-wasi'
+export * from 'resource-pool-wasm32-wasi'

@@ -37,9 +37,7 @@ export class GenericObjectPool {
       } catch {
         // Resource not available, check timeout
         if (timeoutMs !== undefined && Date.now() - startTime >= timeoutMs) {
-          throw new Error(
-            `Failed to acquire resource within ${timeoutMs}ms timeout`,
-          )
+          throw new Error(`Failed to acquire resource within ${timeoutMs}ms timeout`)
         }
 
         // Wait a bit before retrying

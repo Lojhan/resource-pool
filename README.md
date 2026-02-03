@@ -66,10 +66,10 @@ pool.release(resource)
 try {
   // Acquire with 5 second timeout
   const resource = await pool.acquireAsync(5000)
-  
+
   // Use the resource
   // ...
-  
+
   pool.release(resource)
 } catch (err) {
   console.error('Failed to acquire resource within timeout:', err.message)
@@ -171,10 +171,7 @@ interface DatabaseConnection {
   close(): Promise<void>
 }
 
-const pool = new GenericObjectPool<DatabaseConnection>([
-  conn1,
-  conn2,
-])
+const pool = new GenericObjectPool<DatabaseConnection>([conn1, conn2])
 
 // Full type inference
 const connection = await pool.acquireAsync()
@@ -226,6 +223,7 @@ npm run test:node
 ```
 
 Tests include:
+
 - ✅ Pool creation and basic operations
 - ✅ Acquire/release cycles
 - ✅ Pool exhaustion handling
@@ -269,7 +267,6 @@ MIT
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
-
 
 ## Test in local
 
