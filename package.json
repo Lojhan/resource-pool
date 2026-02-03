@@ -1,5 +1,5 @@
 {
-  "name": "resource-pool",
+  "name": "@lojhan/resource-pool",
   "version": "0.2.2",
   "description": "A generic resource pool implementation for Node.js using N-API and Rust.",
   "main": "index.wrapper.cjs",
