@@ -328,8 +328,8 @@ jobs:
         env:
           YARN_ENABLE_HARDENED_MODE: 0
         run: |
-          cd __test__/cjs && yarn install --no-lockfile && cd ../..
-          cd __test__/mjs && yarn install --no-lockfile && cd ../..
+          cd __test__/cjs && yarn install && cd ../..
+          cd __test__/mjs && yarn install && cd ../..
       - name: Download artifacts
         uses: actions/download-artifact@v7
         with:
