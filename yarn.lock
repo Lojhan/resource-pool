@@ -1745,15 +1745,15 @@ __metadata:
 
 "resource-pool@file:../../::locator=resource-pool-cjs-tests%40workspace%3A__test__%2Fcjs":
   version: 0.2.0
-  resolution: "resource-pool@file:../../#../../::hash=c0f105&locator=resource-pool-cjs-tests%40workspace%3A__test__%2Fcjs"
-  checksum: 10c0/4538e0eb1650494d4fb56210dc2aff972da18c09a5933286c14c1f51aa2175d39e3f1c837691f71005c02ee5ddcf922bde0a7e34cc36515a2361e1a21e6a6421
+  resolution: "resource-pool@file:../../#../../::hash=24496d&locator=resource-pool-cjs-tests%40workspace%3A__test__%2Fcjs"
+  checksum: 10c0/54555e82102fd4620aa665949df44288437894343b09f6cb7cece557bfb3c0dbb18e5a23ab17df4c13632b703d2d37205c6e80ff2b1c59fe6cff2d778a17ee61
   languageName: node
   linkType: hard
 
 "resource-pool@file:../../::locator=resource-pool-mjs-tests%40workspace%3A__test__%2Fmjs":
   version: 0.2.0
-  resolution: "resource-pool@file:../../#../../::hash=c0f105&locator=resource-pool-mjs-tests%40workspace%3A__test__%2Fmjs"
-  checksum: 10c0/4538e0eb1650494d4fb56210dc2aff972da18c09a5933286c14c1f51aa2175d39e3f1c837691f71005c02ee5ddcf922bde0a7e34cc36515a2361e1a21e6a6421
+  resolution: "resource-pool@file:../../#../../::hash=24496d&locator=resource-pool-mjs-tests%40workspace%3A__test__%2Fmjs"
+  checksum: 10c0/54555e82102fd4620aa665949df44288437894343b09f6cb7cece557bfb3c0dbb18e5a23ab17df4c13632b703d2d37205c6e80ff2b1c59fe6cff2d778a17ee61
   languageName: node
   linkType: hard
 
