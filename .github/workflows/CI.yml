@@ -325,9 +325,11 @@ jobs:
           yarn config set supportedArchitectures.cpu "wasm32"
           yarn install
       - name: Install test dependencies
+        env:
+          YARN_ENABLE_HARDENED_MODE: 0
         run: |
-          cd __test__/cjs && yarn install && cd ../..
-          cd __test__/mjs && yarn install && cd ../..
+          cd __test__/cjs && yarn install --no-lockfile && cd ../..
+          cd __test__/mjs && yarn install --no-lockfile && cd ../..
       - name: Download artifacts
         uses: actions/download-artifact@v7
         with:
@@ -340,6 +342,7 @@ jobs:
         run: yarn test
         env:
           NAPI_RS_FORCE_WASI: 1
+          YARN_ENABLE_HARDENED_MODE: 0
   publish:
     name: Publish
     runs-on: ubuntu-latest
