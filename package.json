@@ -2,7 +2,8 @@
   "name": "resource-pool",
   "version": "0.2.0",
   "description": "A generic resource pool implementation for Node.js using N-API and Rust.",
-  "main": "index.js",
+  "main": "index.wrapper.cjs",
+  "types": "index.wrapper.d.ts",
   "repository": {
     "type": "git",
     "url": "git+ssh://git@github.com/lojhan/resource-pool.git"
@@ -21,8 +22,22 @@
     "index.d.ts",
     "index.js",
     "index.wrapper.mjs",
+    "index.wrapper.cjs",
+    "index.wrapper.d.ts",
     "browser.js"
   ],
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./index.wrapper.d.ts",
+        "default": "./index.wrapper.mjs"
+      },
+      "require": {
+        "types": "./index.wrapper.d.ts",
+        "default": "./index.wrapper.cjs"
+      }
+    }
+  },
   "napi": {
     "binaryName": "resource_pool",
     "targets": [
@@ -60,8 +75,8 @@
     "format:rs": "cargo fmt",
     "lint": "oxlint .",
     "prepublishOnly": "napi prepublish -t npm",
-    "test:cjs": "node --test ./__test__/*.test.cjs",
-    "test:mjs": "node --test ./__test__/*.test.mjs",
+    "test:cjs": "node --test ./__test__/cjs/",
+    "test:mjs": "node --test ./__test__/mjs/",
     "test": "npm run test:cjs && npm run test:mjs",
     "preversion": "napi build --platform && git add .",
     "version": "napi version",
