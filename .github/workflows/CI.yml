@@ -218,17 +218,17 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: yarn
           architecture: ${{ matrix.settings.architecture }}
+      - name: Download artifacts
+        uses: actions/download-artifact@v7
+        with:
+          name: bindings-${{ matrix.settings.target }}
+          path: .
       - name: Install dependencies
         run: yarn install
       - name: Install test dependencies
         run: |
           cd __test__/cjs && yarn install --no-immutable && cd ../..
           cd __test__/mjs && yarn install --no-immutable && cd ../..
-      - name: Download artifacts
-        uses: actions/download-artifact@v7
-        with:
-          name: bindings-${{ matrix.settings.target }}
-          path: .
       - name: List packages
         run: ls -R .
         shell: bash
@@ -277,16 +277,16 @@ jobs:
               console.log('IMAGE=node:${{ matrix.node }}-slim')
             }
           " >> $GITHUB_OUTPUT
-      - name: Install dependencies
-        run: |
-          yarn config set --json supportedArchitectures.cpu '["current", "arm64", "x64", "arm"]'
-          yarn config set --json supportedArchitectures.libc '["current", "musl", "gnu"]'
-          yarn install
       - name: Download artifacts
         uses: actions/download-artifact@v7
         with:
           name: bindings-${{ matrix.target }}
           path: .
+      - name: Install dependencies
+        run: |
+          yarn config set --json supportedArchitectures.cpu '["current", "arm64", "x64", "arm"]'
+          yarn config set --json supportedArchitectures.libc '["current", "musl", "gnu"]'
+          yarn install
       - name: List packages
         run: ls -R .
         shell: bash
@@ -320,6 +320,11 @@ jobs:
         with:
           node-version: 24
           cache: yarn
+      - name: Download artifacts
+        uses: actions/download-artifact@v7
+        with:
+          name: bindings-wasm32-wasip1-threads
+          path: .
       - name: Install dependencies
         run: |
           yarn config set supportedArchitectures.cpu "wasm32"
@@ -330,11 +335,6 @@ jobs:
         run: |
           cd __test__/cjs && yarn install --no-immutable && cd ../..
           cd __test__/mjs && yarn install --no-immutable && cd ../..
-      - name: Download artifacts
-        uses: actions/download-artifact@v7
-        with:
-          name: bindings-wasm32-wasip1-threads
-          path: .
       - name: List packages
         run: ls -R .
         shell: bash
