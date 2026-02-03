@@ -187,6 +187,7 @@ jobs:
         with:
           name: bindings-freebsd
           path: ${{ env.APP_NAME }}.*.node
+
           if-no-files-found: error
   test-macOS-windows-binding:
     name: Test bindings on ${{ matrix.settings.target }} - node@${{ matrix.node }}
@@ -372,6 +373,11 @@ jobs:
         uses: actions/download-artifact@v7
         with:
           path: artifacts
+      - name: Move WASI files
+        run: |
+          mv artifacts/bindings-wasm32-wasip1-threads/resource_pool.wasi.cjs .
+          mv artifacts/bindings-wasm32-wasip1-threads/resource_pool.wasi-browser.js .
+        shell: bash
       - name: Move artifacts
         run: yarn artifacts
       - name: List packages
