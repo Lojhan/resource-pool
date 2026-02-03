@@ -4,6 +4,9 @@ env:
   APP_NAME: resource_pool
   MACOSX_DEPLOYMENT_TARGET: '10.13'
   CARGO_INCREMENTAL: '1'
+permissions:
+  contents: write
+  id-token: write
 'on':
   push:
     branches:
@@ -349,9 +352,6 @@ jobs:
   publish:
     name: Publish
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      id-token: write
     needs:
       - lint
       - build-freebsd
