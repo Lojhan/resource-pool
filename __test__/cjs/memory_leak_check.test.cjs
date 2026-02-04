@@ -6,8 +6,16 @@ function formatMemory(usage) {
   return `RSS: ${(usage.rss / 1024 / 1024).toFixed(2)} MB, Heap: ${(usage.heapUsed / 1024 / 1024).toFixed(2)} MB`
 }
 
-test('Memory Leak Check (CJS)', async () => {
-  console.log('Starting Memory Leak Test (CJS)...')
+test('Memory Leak Check (CJS) - Async', async () => {
+  await runLeakTest('async')
+})
+
+test('Memory Leak Check (CJS) - Sync', async () => {
+  await runLeakTest('sync')
+})
+
+async function runLeakTest(mode) {
+  console.log(`Starting Memory Leak Test (${mode.toUpperCase()})...`)
 
   // 1. Setup Pool
   const factory = () => ({
@@ -26,7 +34,12 @@ test('Memory Leak Check (CJS)', async () => {
 
   console.log(`Warming up for ${WARMUP_ITERATIONS} iterations...`)
   for (let i = 0; i < WARMUP_ITERATIONS; i++) {
-    const res = await pool.acquireAsync(null)
+    let res
+    if (mode === 'async') {
+      res = await pool.acquireAsync(null)
+    } else {
+      res = pool.acquire()
+    }
     res.id = res.id + 1
     pool.release(res)
   }
@@ -39,7 +52,12 @@ test('Memory Leak Check (CJS)', async () => {
 
   // 2. Run Loop
   for (let i = 0; i < ITERATIONS; i++) {
-    const res = await pool.acquireAsync(null)
+    let res
+    if (mode === 'async') {
+      res = await pool.acquireAsync(null)
+    } else {
+      res = pool.acquire()
+    }
     res.id = res.id + 1
     pool.release(res)
 
@@ -69,4 +87,4 @@ test('Memory Leak Check (CJS)', async () => {
   } else {
     assert.ok(true, 'No significant memory leak detected.')
   }
-})
+}
