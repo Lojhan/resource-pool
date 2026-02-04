@@ -1,3 +1,4 @@
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::sync::Semaphore;
@@ -27,6 +28,8 @@ impl std::error::Error for PoolError {}
 pub struct CorePool<T> {
   pool: Arc<Mutex<Vec<T>>>,
   semaphore: Arc<Semaphore>,
+  size: Arc<AtomicUsize>,
+  pending: Arc<AtomicUsize>,
 }
 
 impl<T> Clone for CorePool<T> {
@@ -34,6 +37,8 @@ impl<T> Clone for CorePool<T> {
     Self {
       pool: self.pool.clone(),
       semaphore: self.semaphore.clone(),
+      size: self.size.clone(),
+      pending: self.pending.clone(),
     }
   }
 }
@@ -44,6 +49,8 @@ impl<T> CorePool<T> {
     Self {
       pool: Arc::new(Mutex::new(items)),
       semaphore: Arc::new(Semaphore::new(count)),
+      size: Arc::new(AtomicUsize::new(count)),
+      pending: Arc::new(AtomicUsize::new(0)),
     }
   }
 
@@ -55,18 +62,18 @@ impl<T> CorePool<T> {
   }
 
   pub async fn acquire_async(&self, timeout_ms: Option<u64>) -> Result<T, PoolError> {
-    let permit = if let Some(ms) = timeout_ms {
-      match timeout(Duration::from_millis(ms), self.semaphore.acquire()).await {
-        Ok(Ok(p)) => p,
-        Ok(Err(_)) => return Err(PoolError::Closed),
-        Err(_) => return Err(PoolError::Timeout),
-      }
+    self.pending.fetch_add(1, Ordering::Relaxed);
+    let permit_result = if let Some(ms) = timeout_ms {
+      timeout(Duration::from_millis(ms), self.semaphore.acquire()).await
     } else {
-      self
-        .semaphore
-        .acquire()
-        .await
-        .map_err(|_| PoolError::Closed)?
+      Ok(self.semaphore.acquire().await)
+    };
+    self.pending.fetch_sub(1, Ordering::Relaxed);
+
+    let permit = match permit_result {
+      Ok(Ok(p)) => p,
+      Ok(Err(_)) => return Err(PoolError::Closed), // Semaphore closed error
+      Err(_) => return Err(PoolError::Timeout),    // Timeout error
     };
 
     permit.forget();
@@ -86,6 +93,7 @@ impl<T> CorePool<T> {
     if let Ok(mut pool) = self.pool.lock() {
       pool.push(item);
       self.semaphore.add_permits(1);
+      self.size.fetch_add(1, Ordering::Relaxed);
     }
   }
 
@@ -93,8 +101,10 @@ impl<T> CorePool<T> {
     if let Ok(permit) = self.semaphore.try_acquire() {
       permit.forget();
       if let Ok(mut pool) = self.pool.lock() {
-        pool.pop();
-        return true;
+        if pool.pop().is_some() {
+          self.size.fetch_sub(1, Ordering::Relaxed);
+          return true;
+        }
       }
     }
     false
@@ -102,6 +112,25 @@ impl<T> CorePool<T> {
 
   pub fn available_count(&self) -> usize {
     self.semaphore.available_permits()
+  }
+
+  pub fn size(&self) -> usize {
+    self.size.load(Ordering::Relaxed)
+  }
+
+  pub fn pending_count(&self) -> usize {
+    self.pending.load(Ordering::Relaxed)
+  }
+
+  pub fn destroy(&self) {
+    self.semaphore.close();
+    if let Ok(mut pool) = self.pool.lock() {
+      let dropped = pool.len();
+      pool.clear();
+      if dropped > 0 {
+        self.size.fetch_sub(dropped, Ordering::Relaxed);
+      }
+    }
   }
 }
 
@@ -139,7 +168,8 @@ mod tests {
     assert!(duration >= Duration::from_millis(200));
   }
 
-  #[tokio::test(flavor = "multi_thread")]
+  #[cfg_attr(not(target_arch = "wasm32"), tokio::test(flavor = "multi_thread"))]
+  #[cfg_attr(target_arch = "wasm32", tokio::test)]
   async fn test_concurrency() {
     let pool = CorePool::new(vec![1]); // Only 1 item
     let pool_clone = pool.clone();

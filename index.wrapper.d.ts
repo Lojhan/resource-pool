@@ -47,4 +47,35 @@ export class GenericObjectPool<T> {
    * @returns Number of available resources
    */
   availableCount(): number
+
+  /**
+   * Use a resource from the pool with automatic release
+   * @param fn - Function to execute with the resource
+   */
+  use<R>(fn: (resource: T) => Promise<R>): Promise<R>
+
+  /**
+   * Get the number of available resources
+   */
+  readonly available: number
+
+  /**
+   * Get the total number of resources managed by the pool
+   */
+  readonly size: number
+
+  /**
+   * Get the number of pending acquire requests
+   */
+  readonly pendingCount: number
+
+  /**
+   * Get the number of used resources
+   */
+  readonly numUsed: number
+
+  /**
+   * Destroy the pool and stop accepting new acquires
+   */
+  destroy(): void
 }

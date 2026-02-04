@@ -1,306 +1,158 @@
-# resource-pool
+# Resource Pool
 
-![https://github.com/Lojhan/resource-pool/actions](https://github.com/Lojhan/resource-pool/workflows/CI/badge.svg)
+![CI](https://github.com/Lojhan/resource-pool/workflows/CI/badge.svg)
+[![npm version](https://img.shields.io/npm/v/@lojhan/resource-pool.svg)](https://www.npmjs.com/package/@lojhan/resource-pool)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A high-performance, thread-safe resource pool implementation for Node.js, written in Rust using NAPI-RS. Perfect for managing limited resources like database connections, HTTP clients, or any reusable objects.
+A high-performance, generic resource pool implementation for Node.js, built with Rust and N-API. It provides robust concurrency control, async acquisition timeouts, and lifecycle management for any type of reusable resource (database connections, worker threads, sophisticated clients, etc.).
 
 ## Features
 
-- 🚀 **High Performance**: Native Rust implementation for blazing-fast resource management
-- 🔒 **Thread-Safe**: Built with `Arc<Mutex>` and Tokio's `Semaphore` for safe concurrent access
-- ⏱️ **Async Support**: `acquireAsync()` method with optional timeout for async/await workflows
-- 💾 **Type Safe**: Full TypeScript support with generic typing
-- 📦 **Zero Dependencies**: Self-contained, no external dependencies in production
-- ✅ **Comprehensive Tests**: 13+ test cases covering all scenarios
+- 🚀 **High Performance**: Native Rust implementation using `Arc<Mutex>` and Tokio `Semaphore` for minimal overhead.
+- ⚡ **Async First**: Non-blocking `acquireAsync` with timeout support.
+- 🛡️ **Leak Protection**: `.use()` helper handles acquisition and release automatically, even on errors.
+- 📊 **Observability**: Metrics for pool size, available resources, used resources, and pending acquisitions.
+- 🛑 **Graceful Shutdown**: `.destroy()` method ensuring no new resources are acquired during shutdown.
+- 💾 **Type Safe**: Full TypeScript support with generics.
 
 ## Installation
 
 ```bash
-npm install resource-pool
+npm install @lojhan/resource-pool
 # or
-yarn add resource-pool
+yarn add @lojhan/resource-pool
 ```
 
-## Quick Start
+## Usage
 
 ### Basic Usage
 
 ```typescript
-import { GenericObjectPool } from 'resource-pool'
+import { GenericObjectPool } from '@lojhan/resource-pool'
 
-// Create a pool with initial resources
-const resources = [
-  { id: 1, name: 'Connection 1' },
-  { id: 2, name: 'Connection 2' },
-  { id: 3, name: 'Connection 3' },
-]
-const pool = new GenericObjectPool(resources)
+// 1. Create a pool
+const dbConnections = [new Connection('db1'), new Connection('db2')]
+const pool = new GenericObjectPool(dbConnections)
 
-// Acquire a resource synchronously
-const resource = pool.acquire()
-console.log(resource) // { id: 1, name: 'Connection 1' }
-
-// Use the resource
-// ...
-
-// Release it back to the pool
-pool.release(resource)
+// 2. Safely use a resource
+await pool.use(async (conn) => {
+  console.log('Got connection:', conn.name)
+  await conn.query('SELECT 1')
+  // Automatically released after this block !
+})
 ```
 
-### Async Acquisition with Retry
+### Manual Acquisition (Advanced)
 
-```typescript
-// Acquire a resource asynchronously (with automatic retry)
-const resource = await pool.acquireAsync()
-
-// Use the resource
-// ...
-
-// Release when done
-pool.release(resource)
-```
-
-### With Timeout
+If you need fine-grained control over the lifecycle:
 
 ```typescript
 try {
-  // Acquire with 5 second timeout
+  // Acquire with a 5s timeout
   const resource = await pool.acquireAsync(5000)
 
-  // Use the resource
-  // ...
-
-  pool.release(resource)
+  try {
+    await doWork(resource)
+  } finally {
+    // ALWAYS release the resource
+    pool.release(resource)
+  }
 } catch (err) {
-  console.error('Failed to acquire resource within timeout:', err.message)
+  if (err.message.includes('timeout')) {
+    console.error('Timed out waiting for resource')
+  }
 }
-```
-
-### Dynamic Pool Management
-
-```typescript
-const pool = new GenericObjectPool([{ id: 1 }])
-
-// Add resources dynamically
-pool.add({ id: 2 })
-pool.add({ id: 3 })
-
-// Check available count
-console.log(pool.availableCount()) // 3
-
-// Remove an available resource
-const removed = pool.removeOne()
-console.log(removed) // true
 ```
 
 ## API Reference
 
 ### `constructor(resources: T[])`
 
-Create a new resource pool with initial resources.
+Initialize the pool with a set of pre-created resources.
+
+### Acquistion Methods
+
+#### `use<R>(fn: (resource: T) => Promise<R>): Promise<R>`
+
+**Recommended.** Acquires a resource, runs the callback, and guarantees the resource is released back to the pool, even if the callback throws an error.
+
+#### `acquireAsync(timeoutMs?: number): Promise<T>`
+
+Returns a Promise that resolves when a resource becomes available.
+
+- `timeoutMs`: Optional functionality to reject the promise if no resource is available within the specified time.
+
+#### `acquire(): T` (Synchronous)
+
+Immediately returns a resource if available, or throws an error if the pool is empty.
+
+### Management & Lifecycle
+
+#### `add(resource: T): void`
+
+Add a new resource instance to the pool dynamically.
+
+#### `removeOne(): boolean`
+
+Removes one _available_ resource from the pool. Returns `true` if successful, or `false` if all resources are currently in use.
+
+#### `destroy(): void`
+
+Closes the pool.
+
+- Rejects any current `pending` acquisitions with a "Pool closed" error.
+- Prevents any future acquisitions.
+- Clears internal storage.
+
+### Observability (Getters)
+
+- `pool.size`: Total number of resources managed by the pool.
+- `pool.available`: Number of resources currently idle and ready to be acquired.
+- `pool.numUsed`: Number of resources currently checked out.
+- `pool.pendingCount`: Number of callers currently waiting in line for a resource.
+
+## Example: Managing Database Connections
 
 ```typescript
-const pool = new GenericObjectPool([resource1, resource2])
-```
+import { GenericObjectPool } from '@lojhan/resource-pool'
 
-### `acquire(): T`
-
-Acquire a resource from the pool synchronously.
-
-**Throws**: Error if no resources are available.
-
-```typescript
-const resource = pool.acquire()
-```
-
-### `acquireAsync(timeoutMs?: number): Promise<T>`
-
-Acquire a resource asynchronously with automatic retry.
-
-- `timeoutMs` (optional): Timeout in milliseconds. Throws if exceeded.
-- Returns: Promise that resolves with an available resource
-- **Throws**: Error if timeout is exceeded before acquiring a resource
-
-```typescript
-const resource = await pool.acquireAsync()
-const resourceWithTimeout = await pool.acquireAsync(5000)
-```
-
-### `release(resource: T): void`
-
-Release a resource back to the pool.
-
-```typescript
-pool.release(resource)
-```
-
-### `add(resource: T): void`
-
-Add a new resource to the pool.
-
-```typescript
-pool.add(newResource)
-```
-
-### `removeOne(): boolean`
-
-Remove one available resource from the pool.
-
-- Returns: `true` if a resource was removed, `false` if all are in use
-
-```typescript
-const removed = pool.removeOne()
-```
-
-### `availableCount(): number`
-
-Get the number of available resources in the pool.
-
-```typescript
-const count = pool.availableCount()
-```
-
-## Type Safety
-
-The pool is fully generic and works with TypeScript:
-
-```typescript
-interface DatabaseConnection {
+// Valid for any resource type
+interface DBConnection {
   id: number
-  query(sql: string): Promise<any>
-  close(): Promise<void>
+  query: (sql: string) => Promise<any>
 }
 
-const pool = new GenericObjectPool<DatabaseConnection>([conn1, conn2])
+// Initialize resource set
+const connections: DBConnection[] = createConnections(10)
 
-// Full type inference
-const connection = await pool.acquireAsync()
-await connection.query('SELECT * FROM users') // ✓ Type-safe
-connection.nonexistent() // ✗ TypeScript error
+const pool = new GenericObjectPool(connections)
+
+async function handleRequest() {
+  // Metrics check
+  if (pool.pendingCount > 50) {
+    throw new Error('System overloaded')
+  }
+
+  return pool.use(async (conn) => {
+    return await conn.query('SELECT * FROM users')
+  })
+}
+
+// Shutdown
+process.on('SIGTERM', () => {
+  pool.destroy()
+  closeConnections(connections)
+})
 ```
 
-## Concurrency Example
+## Behavior & Concurrency
 
-```typescript
-// Pool with 2 resources, 3 concurrent operations
-const pool = new GenericObjectPool([{ id: 1 }, { id: 2 }])
+The pool uses a **First-In-First-Out (FIFO)** fair queuing strategy.
 
-const operations = [
-  (async () => {
-    const resource = await pool.acquireAsync()
-    await doWork(resource) // 1s
-    pool.release(resource)
-  })(),
-  (async () => {
-    const resource = await pool.acquireAsync()
-    await doWork(resource) // 1s
-    pool.release(resource)
-  })(),
-  (async () => {
-    const resource = await pool.acquireAsync() // Will wait ~1s
-    await doWork(resource) // 1s
-    pool.release(resource)
-  })(),
-]
-
-await Promise.all(operations)
-// Total time: ~2s (parallelism proven!)
-```
-
-## Performance Characteristics
-
-- **Acquire**: O(1) when resources available, retries with 10ms intervals when pool exhausted
-- **Release**: O(1)
-- **Memory**: Minimal overhead, uses native Rust implementation
-- **Thread Safety**: Lock-free when possible, mutex-protected for concurrent access
-
-## Testing
-
-Run the comprehensive test suite:
-
-```bash
-npm run test:node
-```
-
-Tests include:
-
-- ✅ Pool creation and basic operations
-- ✅ Acquire/release cycles
-- ✅ Pool exhaustion handling
-- ✅ Dynamic resource management
-- ✅ Type safety with complex objects
-- ✅ 3 parallel operations with 2 resources
-- ✅ Timeout handling
-
-## Development
-
-### Requirements
-
-- Rust 1.70+
-- Node.js 18+
-- Yarn 4+
-
-### Build
-
-```bash
-yarn build
-```
-
-### Test
-
-```bash
-yarn test:node  # Native tests
-yarn test       # All tests
-```
-
-### Lint & Format
-
-```bash
-yarn lint
-yarn format
-```
+- If resources are available, acquisition is instant.
+- If all resources are busy, callers wait in a queue.
+- If a timeout is specified, the caller is removed from the queue if the timeout elapses.
 
 ## License
 
 MIT
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## Test in local
-
-- yarn
-- yarn build
-- yarn test
-
-And you will see:
-
-```bash
-$ ava --verbose
-
-  ✔ sync function from native code
-  ✔ sleep function from native code (201ms)
-  ─
-
-  2 tests passed
-✨  Done in 1.12s.
-```
-
-## Release package
-
-Ensure you have set your **NPM_TOKEN** in the `GitHub` project setting.
-
-In `Settings -> Secrets`, add **NPM_TOKEN** into it.
-
-When you want to release the package:
-
-```bash
-npm version [<newversion> | major | minor | patch | premajor | preminor | prepatch | prerelease [--preid=<prerelease-id>] | from-git]
-
-git push
-```
-
-GitHub actions will do the rest job for you.
-
-> WARN: Don't run `npm publish` manually.

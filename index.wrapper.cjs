@@ -65,6 +65,61 @@ class GenericObjectPool {
   availableCount() {
     return this.pool.availableCount()
   }
+
+  /**
+   * Use a resource from the pool with automatic release
+   * @template R
+   * @param {(resource: T) => Promise<R>} fn - Function to execute with the resource
+   * @returns {Promise<R>} Result of the function
+   */
+  async use(fn) {
+    const resource = await this.acquireAsync()
+    try {
+      return await fn(resource)
+    } finally {
+      this.release(resource)
+    }
+  }
+
+  /**
+   * Get the number of available resources
+   * @returns {number}
+   */
+  get available() {
+    return this.pool.availableCount()
+  }
+
+  /**
+   * Get the total number of resources managed by the pool
+   * @returns {number}
+   */
+  get size() {
+    return this.pool.size()
+  }
+
+  /**
+   * Get the number of pending acquire requests
+   * @returns {number}
+   */
+  get pendingCount() {
+    return this.pool.pendingCount()
+  }
+
+  /**
+   * Get the number of used resources
+   * @returns {number}
+   */
+  get numUsed() {
+    return this.pool.size() - this.pool.availableCount()
+  }
+
+  /**
+   * Destroy the pool and stop accepting new acquires
+   * @returns {void}
+   */
+  destroy() {
+    this.pool.destroy()
+  }
 }
 
 module.exports = { GenericObjectPool }
