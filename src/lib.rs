@@ -4,10 +4,10 @@ mod pool;
 
 use crate::pool::{CorePool, PoolError};
 use napi::bindgen_prelude::*;
+use napi::sys;
 use napi_derive::napi;
 use parking_lot::Mutex;
 use std::sync::Arc;
-use napi::sys;
 
 struct WrappedRef(sys::napi_ref);
 
@@ -27,19 +27,19 @@ impl GenericObjectPool {
     let count = initial_values.len();
     let mut refs = Vec::with_capacity(count);
     let mut indices = Vec::with_capacity(count);
-    
+
     for (i, val) in initial_values.into_iter().enumerate() {
       let mut ref_ptr = std::ptr::null_mut();
       unsafe {
-          let status = sys::napi_create_reference(env.raw(), val.raw(), 1, &mut ref_ptr);
-          if status != sys::Status::napi_ok {
-              return Err(Error::from_status(status.into()));
-          }
+        let status = sys::napi_create_reference(env.raw(), val.raw(), 1, &mut ref_ptr);
+        if status != sys::Status::napi_ok {
+          return Err(Error::from_status(status.into()));
+        }
       }
       refs.push(Some(WrappedRef(ref_ptr)));
       indices.push(i);
     }
-    
+
     Ok(GenericObjectPool {
       resources: Arc::new(Mutex::new(refs)),
       inner: CorePool::new(indices),
@@ -52,18 +52,18 @@ impl GenericObjectPool {
       Some(idx) => {
         let resources = self.resources.lock();
         if let Some(Some(r)) = resources.get(idx) {
-             unsafe {
-                 let mut result = std::ptr::null_mut();
-                 let status = sys::napi_get_reference_value(env.raw(), r.0, &mut result);
-                 if status != sys::Status::napi_ok {
-                     return Err(Error::from_status(status.into()));
-                 }
-                 Ok(Object::from_raw(env.raw(), result))
-             }
+          unsafe {
+            let mut result = std::ptr::null_mut();
+            let status = sys::napi_get_reference_value(env.raw(), r.0, &mut result);
+            if status != sys::Status::napi_ok {
+              return Err(Error::from_status(status.into()));
+            }
+            Ok(Object::from_raw(env.raw(), result))
+          }
         } else {
-             Err(Error::from_reason("Resource invalid or removed"))
+          Err(Error::from_reason("Resource invalid or removed"))
         }
-      },
+      }
       None => Err(Error::from_reason("No resources available")),
     }
   }
@@ -89,50 +89,50 @@ impl GenericObjectPool {
 
   #[napi]
   pub fn get_resource(&'_ self, env: Env, idx: u32) -> Result<Object<'_>> {
-      let resources = self.resources.lock();
-      if let Some(Some(r)) = resources.get(idx as usize) {
-          unsafe {
-              let mut result = std::ptr::null_mut();
-              let status = sys::napi_get_reference_value(env.raw(), r.0, &mut result);
-              if status != sys::Status::napi_ok {
-                  return Err(Error::from_status(status.into()));
-              }
-              Ok(Object::from_raw(env.raw(), result))
-          }
-      } else {
-          Err(Error::from_reason("Resource invalid or removed"))
+    let resources = self.resources.lock();
+    if let Some(Some(r)) = resources.get(idx as usize) {
+      unsafe {
+        let mut result = std::ptr::null_mut();
+        let status = sys::napi_get_reference_value(env.raw(), r.0, &mut result);
+        if status != sys::Status::napi_ok {
+          return Err(Error::from_status(status.into()));
+        }
+        Ok(Object::from_raw(env.raw(), result))
       }
+    } else {
+      Err(Error::from_reason("Resource invalid or removed"))
+    }
   }
 
   #[napi]
   pub fn release(&self, env: Env, resource: Object) -> Result<()> {
     let resources = self.resources.lock();
     let mut found_idx = None;
-    
-    let resource_raw =  resource.raw();
-    
+
+    let resource_raw = resource.raw();
+
     for (i, opt_ref) in resources.iter().enumerate() {
-        if let Some(r) = opt_ref {
-            unsafe {
-                let mut val_ptr: sys::napi_value = std::ptr::null_mut();
-                let status = sys::napi_get_reference_value(env.raw(), r.0, &mut val_ptr);
-                if status == sys::Status::napi_ok {
-                    let mut result = false;
-                    sys::napi_strict_equals(env.raw(), val_ptr, resource_raw, &mut result);
-                    if result {
-                        found_idx = Some(i);
-                        break;
-                    }
-                }
+      if let Some(r) = opt_ref {
+        unsafe {
+          let mut val_ptr: sys::napi_value = std::ptr::null_mut();
+          let status = sys::napi_get_reference_value(env.raw(), r.0, &mut val_ptr);
+          if status == sys::Status::napi_ok {
+            let mut result = false;
+            sys::napi_strict_equals(env.raw(), val_ptr, resource_raw, &mut result);
+            if result {
+              found_idx = Some(i);
+              break;
             }
+          }
         }
+      }
     }
-    
+
     if let Some(idx) = found_idx {
-        self.inner.release(idx);
-        Ok(())
+      self.inner.release(idx);
+      Ok(())
     } else {
-        Err(Error::from_reason("Resource not belonging to pool"))
+      Err(Error::from_reason("Resource not belonging to pool"))
     }
   }
 
@@ -141,10 +141,10 @@ impl GenericObjectPool {
     let mut resources = self.resources.lock();
     let mut ref_ptr = std::ptr::null_mut();
     unsafe {
-          let status = sys::napi_create_reference(env.raw(), resource.raw(), 1, &mut ref_ptr);
-          if status != sys::Status::napi_ok {
-              return Err(Error::from_status(status.into()));
-          }
+      let status = sys::napi_create_reference(env.raw(), resource.raw(), 1, &mut ref_ptr);
+      if status != sys::Status::napi_ok {
+        return Err(Error::from_status(status.into()));
+      }
     }
     resources.push(Some(WrappedRef(ref_ptr)));
     let new_idx = resources.len() - 1;
@@ -157,11 +157,11 @@ impl GenericObjectPool {
     if let Some(idx) = self.inner.remove_one() {
       let mut resources = self.resources.lock();
       if idx < resources.len() {
-          if let Some(r) = resources[idx].take() {
-             unsafe {
-                 sys::napi_delete_reference(env.raw(), r.0);
-             }
+        if let Some(r) = resources[idx].take() {
+          unsafe {
+            sys::napi_delete_reference(env.raw(), r.0);
           }
+        }
       }
       Ok(true)
     } else {
@@ -189,11 +189,11 @@ impl GenericObjectPool {
     let mut resources = self.resources.lock();
     for idx in self.inner.drain() {
       if idx < resources.len() {
-          if let Some(r) = resources[idx].take() {
-              unsafe {
-                  sys::napi_delete_reference(env.raw(), r.0);
-              }
+        if let Some(r) = resources[idx].take() {
+          unsafe {
+            sys::napi_delete_reference(env.raw(), r.0);
           }
+        }
       }
     }
     Ok(())
