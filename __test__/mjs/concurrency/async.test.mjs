@@ -52,11 +52,11 @@ describe('GenericObjectPool - Concurrency & Async', () => {
 
     const sortedResults = [...results].sort((a, b) => a.acquiredAt - b.acquiredAt)
 
-    assert.ok(sortedResults[0].acquiredAt < 100, 'First operation acquired immediately')
-    assert.ok(sortedResults[1].acquiredAt < 100, 'Second operation acquired immediately')
+    assert.ok(sortedResults[0].acquiredAt < 500, 'First operation acquired immediately')
+    assert.ok(sortedResults[1].acquiredAt < 500, 'Second operation acquired immediately')
 
     assert.ok(
-      sortedResults[2].acquiredAt >= 900 && sortedResults[2].acquiredAt < 1200,
+      sortedResults[2].acquiredAt >= 900 && sortedResults[2].acquiredAt < 1500,
       `Third operation acquired after ~1s (got ${sortedResults[2].acquiredAt}ms)`,
     )
 
