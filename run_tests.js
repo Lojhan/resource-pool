@@ -35,6 +35,25 @@ if (testFiles.length === 0) {
   process.exit(0)
 }
 
-console.log(`Running ${testFiles.length} test files in ${dir}...`)
-const result = spawnSync(process.execPath, ['--expose-gc', '--test', ...testFiles], { stdio: 'inherit' })
-process.exit(result.status ?? 1)
+const memoryLeakTests = testFiles.filter((f) => f.includes('memory_leak_check'))
+const regularTests = testFiles.filter((f) => !f.includes('memory_leak_check'))
+
+if (regularTests.length > 0) {
+  console.log(`Running ${regularTests.length} regular test files in ${dir}...`)
+  const result = spawnSync(process.execPath, ['--expose-gc', '--test', ...regularTests], { stdio: 'inherit' })
+  if (result.status !== 0) {
+    process.exit(result.status ?? 1)
+  }
+}
+
+if (memoryLeakTests.length > 0) {
+  console.log(`Running ${memoryLeakTests.length} memory leak test files in ${dir} (sequentially)...`)
+  const result = spawnSync(process.execPath, ['--expose-gc', '--test', '--test-concurrency=1', ...memoryLeakTests], {
+    stdio: 'inherit',
+  })
+  if (result.status !== 0) {
+    process.exit(result.status ?? 1)
+  }
+}
+
+process.exit(0)
