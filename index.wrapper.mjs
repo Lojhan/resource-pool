@@ -29,21 +29,7 @@ export class GenericObjectPool {
    * @returns {Promise<T>} Promise that resolves with a resource when one becomes available
    */
   async acquireAsync(timeoutMs) {
-    const startTime = Date.now()
-
-    while (true) {
-      try {
-        return this.pool.acquire()
-      } catch {
-        // Resource not available, check timeout
-        if (timeoutMs !== undefined && Date.now() - startTime >= timeoutMs) {
-          throw new Error(`Failed to acquire resource within ${timeoutMs}ms timeout`)
-        }
-
-        // Wait a bit before retrying
-        await new Promise((resolve) => setTimeout(resolve, 10))
-      }
-    }
+    return this.pool.acquireAsync(timeoutMs)
   }
 
   /**
