@@ -6,7 +6,7 @@
   "types": "index.wrapper.d.ts",
   "repository": {
     "type": "git",
-    "url": "git+ssh://git@github.com/lojhan/resource-pool.git"
+    "url": "https://github.com/Lojhan/resource-pool.git"
   },
   "license": "MIT",
   "browser": "browser.js",
@@ -116,5 +116,21 @@
     "singleQuote": true,
     "arrowParens": "always"
   },
-  "packageManager": "yarn@4.12.0"
+  "packageManager": "yarn@4.12.0",
+  "optionalDependencies": {
+    "@lojhan/resource-pool-win32-x64-msvc": "0.5.3",
+    "@lojhan/resource-pool-darwin-x64": "0.5.3",
+    "@lojhan/resource-pool-linux-x64-gnu": "0.5.3",
+    "@lojhan/resource-pool-linux-x64-musl": "0.5.3",
+    "@lojhan/resource-pool-linux-arm64-gnu": "0.5.3",
+    "@lojhan/resource-pool-win32-ia32-msvc": "0.5.3",
+    "@lojhan/resource-pool-linux-arm-gnueabihf": "0.5.3",
+    "@lojhan/resource-pool-darwin-arm64": "0.5.3",
+    "@lojhan/resource-pool-android-arm64": "0.5.3",
+    "@lojhan/resource-pool-freebsd-x64": "0.5.3",
+    "@lojhan/resource-pool-linux-arm64-musl": "0.5.3",
+    "@lojhan/resource-pool-win32-arm64-msvc": "0.5.3",
+    "@lojhan/resource-pool-android-arm-eabi": "0.5.3",
+    "@lojhan/resource-pool-wasm32-wasi": "0.5.3"
+  }
 }
