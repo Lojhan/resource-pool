@@ -1,157 +1,164 @@
-# Resource Pool
+# @lojhan/resource-pool
 
 ![CI](https://github.com/Lojhan/resource-pool/workflows/CI/badge.svg)
 [![npm version](https://img.shields.io/npm/v/@lojhan/resource-pool.svg)](https://www.npmjs.com/package/@lojhan/resource-pool)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A high-performance, generic resource pool implementation for Node.js, built with Rust and N-API. It provides robust concurrency control, async acquisition timeouts, and lifecycle management for any type of reusable resource (database connections, worker threads, sophisticated clients, etc.).
+A high-performance, generic resource pool implementation for Node.js built with Rust and N-API.
+
+This library provides a fast, efficient mechanism to manage access to a set of resources (such as database connections, worker threads, or expensive objects). It leverages Rust's performance and safety to outperform pure JavaScript implementations.
 
 ## Features
 
-- 🚀 **High Performance**: Native Rust implementation using `Arc<Mutex>` and Tokio `Semaphore` for minimal overhead.
-- ⚡ **Async First**: Non-blocking `acquireAsync` with timeout support.
-- 🛡️ **Leak Protection**: `.use()` helper handles acquisition and release automatically, even on errors.
-- 📊 **Observability**: Metrics for pool size, available resources, used resources, and pending acquisitions.
-- 🛑 **Graceful Shutdown**: `.destroy()` method ensuring no new resources are acquired during shutdown.
-- 💾 **Type Safe**: Full TypeScript support with generics.
+- 🚀 **High Performance**: Significant speed advantage over pure JS options due to native Rust implementation.
+- 🚦 **Flexible Acquisition**: Supports both **synchronous** blocking `acquire()` and **asynchronous** `acquireAsync()` with timeouts.
+- 🛡️ **Safety**: The `use()` pattern ensures resources are automatically released back to the pool, even if errors occur.
+- 📦 **Generic**: Can store any JavaScript object.
+- 📊 **Observability**: Real-time properties to monitor `size`, `available` resources, and `pending` requests.
+- 🔒 **Concurrency**: Built to handle high concurrency environments efficiently.
 
 ## Installation
 
 ```bash
 npm install @lojhan/resource-pool
-# or
-yarn add @lojhan/resource-pool
 ```
 
 ## Usage
 
-### Basic Usage
+### Basic Usage with `use()` (Recommended)
 
-```typescript
+The `use` method handles the full lifecycle of the acquisition, ensuring the resource is released back to the pool when your operation finishes or fails.
+
+```javascript
 import { GenericObjectPool } from '@lojhan/resource-pool'
 
-// 1. Create a pool
-const dbConnections = [new Connection('db1'), new Connection('db2')]
+// 1. Create a pool with some resources
+// (You are responsible for creating the resource objects)
+const dbConnections = [new Connection('db1'), new Connection('db2'), new Connection('db3')]
 const pool = new GenericObjectPool(dbConnections)
 
-// 2. Safely use a resource
-await pool.use(async (conn) => {
-  console.log('Got connection:', conn.name)
-  await conn.query('SELECT 1')
-  // Automatically released after this block !
-})
+async function handleRequest() {
+  try {
+    // 2. Use a resource
+    // The pool will acquire a resource, run your function, and release it automatically.
+    const result = await pool.use(async (connection) => {
+      console.log(`Using connection: ${connection.id}`)
+      return await connection.query('SELECT * FROM users')
+    })
+
+    console.log('Query result:', result)
+  } catch (err) {
+    console.error('Operation failed:', err)
+  }
+}
+
+handleRequest()
 ```
 
-### Manual Acquisition (Advanced)
+### Manual Acquire & Release
 
-If you need fine-grained control over the lifecycle:
+You can manually control the acquisition if you need more granular control, but you must ensure `release()` is called.
 
-```typescript
-try {
-  // Acquire with a 5s timeout
-  const resource = await pool.acquireAsync(5000)
+```javascript
+import { GenericObjectPool } from '@lojhan/resource-pool'
 
+const pool = new GenericObjectPool([{ id: 1 }, { id: 2 }])
+
+async function manualWork() {
+  let resource
   try {
-    await doWork(resource)
+    // Acquire with a timeout (e.g., 5000ms)
+    // Returns a Promise that resolves when a resource is available
+    resource = await pool.acquireAsync(5000)
+
+    // Do work with resource
+    console.log('Processing with', resource.id)
+    await processWork(resource)
+  } catch (err) {
+    if (err.message.includes('timeout')) {
+      console.log('Timed out waiting for resource')
+    } else {
+      console.error('Error:', err)
+    }
   } finally {
-    // ALWAYS release the resource
-    pool.release(resource)
+    // ALWAYS release the resource back to the pool
+    if (resource) {
+      pool.release(resource)
+    }
   }
-} catch (err) {
-  if (err.message.includes('timeout')) {
-    console.error('Timed out waiting for resource')
-  }
+}
+```
+
+### Synchronous Acquisition
+
+If you are in a synchronous context and know resources are available, you can use `acquire()`. This will throw if the pool is empty unless there are resources locally available.
+
+```javascript
+try {
+  const resource = pool.acquire() // Throws if empty
+  // ... use resource
+  pool.release(resource)
+} catch (e) {
+  console.log('No resources immediately available')
 }
 ```
 
 ## API Reference
 
-### `constructor(resources: T[])`
+### `new GenericObjectPool(resources: T[])`
 
-Initialize the pool with a set of pre-created resources.
+Creates a pool pre-filled with the provided array of resources.
 
-### Acquistion Methods
+### `pool.use<R>(fn: (resource: T) => Promise<R>, options?): Promise<R>`
 
-#### `use<R>(fn: (resource: T) => Promise<R>): Promise<R>`
+Acquires a resource, executes `fn`, and releases the resource.
+**Options**:
 
-**Recommended.** Acquires a resource, runs the callback, and guarantees the resource is released back to the pool, even if the callback throws an error.
+- `timeout`: (number) Max time to wait for a resource in ms.
+- `optimistic`: (boolean) Try to acquire synchronously first (default: true).
 
-#### `acquireAsync(timeoutMs?: number): Promise<T>`
+### `pool.acquireAsync(timeoutMs?: number): Promise<T>`
 
-Returns a Promise that resolves when a resource becomes available.
+Returns a promise that resolves with a resource. If `timeoutMs` is provided, rejects if no resource is available within the time limit.
 
-- `timeoutMs`: Optional functionality to reject the promise if no resource is available within the specified time.
+### `pool.acquire(): T`
 
-#### `acquire(): T` (Synchronous)
+Synchronously acquires a resource. Throws if none are available.
 
-Immediately returns a resource if available, or throws an error if the pool is empty.
+### `pool.release(resource: T): void`
 
-### Management & Lifecycle
+Returns a resource to the pool, making it available for other consumers.
 
-#### `add(resource: T): void`
+### `pool.add(resource: T): void`
 
-Add a new resource instance to the pool dynamically.
+Adds a new resource to the pool dynamically.
 
-#### `removeOne(): boolean`
+### `pool.removeOne(): boolean`
 
-Removes one _available_ resource from the pool. Returns `true` if successful, or `false` if all resources are currently in use.
+Removes a resource from the available pool (if one is available). Returns `true` if removed.
 
-#### `destroy(): void`
+### `pool.destroy(): void`
 
-Closes the pool.
+Clears the pool and stops accepting new requests.
 
-- Rejects any current `pending` acquisitions with a "Pool closed" error.
-- Prevents any future acquisitions.
-- Clears internal storage.
+### Properties
 
-### Observability (Getters)
+- `pool.size`: Total number of resources in the pool.
+- `pool.available`: Number of idle resources ready to be acquired.
+- `pool.pendingCount`: Number of callers waiting for a resource.
+- `pool.numUsed`: Number of resources currently acquired.
 
-- `pool.size`: Total number of resources managed by the pool.
-- `pool.available`: Number of resources currently idle and ready to be acquired.
-- `pool.numUsed`: Number of resources currently checked out.
-- `pool.pendingCount`: Number of callers currently waiting in line for a resource.
+## Benchmarks
 
-## Example: Managing Database Connections
+This library is significantly faster than popular JavaScript-based pools because the core locking and queueing logic is implemented in Rust.
 
-```typescript
-import { GenericObjectPool } from '@lojhan/resource-pool'
+| Library                   |        Mean [ms] | Relative Speed |
+| :------------------------ | ---------------: | -------------: |
+| **@lojhan/resource-pool** | **248.0 ± 17.5** |       **1.00** |
+| generic-pool              |     821.2 ± 38.4 | 3.31x (slower) |
+| tarn.js                   |    1150.7 ± 49.7 | 4.64x (slower) |
 
-// Valid for any resource type
-interface DBConnection {
-  id: number
-  query: (sql: string) => Promise<any>
-}
-
-// Initialize resource set
-const connections: DBConnection[] = createConnections(10)
-
-const pool = new GenericObjectPool(connections)
-
-async function handleRequest() {
-  // Metrics check
-  if (pool.pendingCount > 50) {
-    throw new Error('System overloaded')
-  }
-
-  return pool.use(async (conn) => {
-    return await conn.query('SELECT * FROM users')
-  })
-}
-
-// Shutdown
-process.on('SIGTERM', () => {
-  pool.destroy()
-  closeConnections(connections)
-})
-```
-
-## Behavior & Concurrency
-
-The pool uses a **First-In-First-Out (FIFO)** fair queuing strategy.
-
-- If resources are available, acquisition is instant.
-- If all resources are busy, callers wait in a queue.
-- If a timeout is specified, the caller is removed from the queue if the timeout elapses.
+_Benchmarks run on macOS (Apple Silicon). Lower is better._
 
 ## License
 
