@@ -22,9 +22,20 @@ test('Memory Leak Check (MJS)', async () => {
 
   const ITERATIONS = 100000
   const LOG_INTERVAL = 10000
+  const WARMUP_ITERATIONS = 20000
+
+  console.log(`Warming up for ${WARMUP_ITERATIONS} iterations...`)
+  for (let i = 0; i < WARMUP_ITERATIONS; i++) {
+    const res = await pool.acquireAsync(null)
+    res.id = res.id + 1
+    pool.release(res)
+  }
+
+  if (global.gc) global.gc()
+  await new Promise((r) => setTimeout(r, 200))
 
   const initialMemory = process.memoryUsage()
-  console.log('Initial Memory:', formatMemory(initialMemory))
+  console.log('Baseline Memory (after warmup):', formatMemory(initialMemory))
 
   // 2. Run Loop
   for (let i = 0; i < ITERATIONS; i++) {
