@@ -9,10 +9,12 @@ version = "0.1.0"
 crate-type = ["cdylib"]
 
 [dependencies]
-napi        = { version = "3", features = ["async", "napi4"] }
-napi-derive = "3"
-parking_lot = { version = "0.12", features = ["send_guard"] }
-tokio       = { version = "1", features = ["sync", "time", "macros", "rt"] }
+crossbeam-queue = "0.3"
+napi            = { version = "3", features = ["async", "napi4"] }
+napi-derive     = "3"
+once_cell       = "1"
+parking_lot     = { version = "0.12", features = ["send_guard"] }
+tokio           = { version = "1", features = ["sync", "time", "macros", "rt"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 tokio = { version = "1", features = ["rt-multi-thread"] }

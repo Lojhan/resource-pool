@@ -1,5 +1,4 @@
-use parking_lot::Mutex;
-use std::collections::VecDeque;
+use crossbeam_queue::SegQueue;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
@@ -26,7 +25,7 @@ impl std::fmt::Display for PoolError {
 impl std::error::Error for PoolError {}
 
 pub struct CorePool<T> {
-  pool: Arc<Mutex<VecDeque<T>>>,
+  pool: Arc<SegQueue<T>>,
   semaphore: Arc<Semaphore>,
   size: Arc<AtomicUsize>,
   pending: Arc<AtomicUsize>,
@@ -46,8 +45,12 @@ impl<T> Clone for CorePool<T> {
 impl<T> CorePool<T> {
   pub fn new(items: Vec<T>) -> Self {
     let count = items.len();
+    let queue = SegQueue::new();
+    for item in items {
+      queue.push(item);
+    }
     Self {
-      pool: Arc::new(Mutex::new(VecDeque::from(items))),
+      pool: Arc::new(queue),
       semaphore: Arc::new(Semaphore::new(count)),
       size: Arc::new(AtomicUsize::new(count)),
       pending: Arc::new(AtomicUsize::new(0)),
@@ -57,16 +60,14 @@ impl<T> CorePool<T> {
   pub fn try_acquire(&self) -> Option<T> {
     let permit = self.semaphore.try_acquire().ok()?;
     permit.forget();
-    let mut pool = self.pool.lock();
-    pool.pop_back()
+    self.pool.pop()
   }
 
   pub async fn acquire_async(&self, timeout_ms: Option<u64>) -> Result<T, PoolError> {
     // Fast path: try to acquire synchronously first
     if let Ok(permit) = self.semaphore.try_acquire() {
       permit.forget();
-      let mut pool = self.pool.lock();
-      if let Some(item) = pool.pop_back() {
+      if let Some(item) = self.pool.pop() {
         return Ok(item);
       } else {
         // Should not happen if semaphore and pool are in sync, but for safety:
@@ -91,19 +92,16 @@ impl<T> CorePool<T> {
 
     permit.forget();
 
-    let mut pool = self.pool.lock();
-    pool.pop_back().ok_or(PoolError::Empty)
+    self.pool.pop().ok_or(PoolError::Empty)
   }
 
   pub fn release(&self, item: T) {
-    let mut pool = self.pool.lock();
-    pool.push_back(item);
+    self.pool.push(item);
     self.semaphore.add_permits(1);
   }
 
   pub fn add(&self, item: T) {
-    let mut pool = self.pool.lock();
-    pool.push_back(item);
+    self.pool.push(item);
     self.semaphore.add_permits(1);
     self.size.fetch_add(1, Ordering::Relaxed);
   }
@@ -111,8 +109,7 @@ impl<T> CorePool<T> {
   pub fn remove_one(&self) -> Option<T> {
     if let Ok(permit) = self.semaphore.try_acquire() {
       permit.forget();
-      let mut pool = self.pool.lock();
-      if let Some(item) = pool.pop_back() {
+      if let Some(item) = self.pool.pop() {
         self.size.fetch_sub(1, Ordering::Relaxed);
         return Some(item);
       }
@@ -134,9 +131,11 @@ impl<T> CorePool<T> {
 
   pub fn drain(&self) -> Vec<T> {
     self.semaphore.close();
-    let mut pool = self.pool.lock();
-    let dropped = pool.len();
-    let items: Vec<T> = pool.drain(..).collect();
+    let mut items = Vec::new();
+    while let Some(item) = self.pool.pop() {
+      items.push(item);
+    }
+    let dropped = items.len();
     if dropped > 0 {
       self.size.fetch_sub(dropped, Ordering::Relaxed);
     }
@@ -154,11 +153,16 @@ mod tests {
     let pool = CorePool::new(vec![1, 2, 3]);
 
     let item = pool.acquire_async(None).await.unwrap();
+    // SegQueue is FIFO, so we expect 1 first
     assert!(vec![1, 2, 3].contains(&item));
+    assert_eq!(item, 1);
     assert_eq!(pool.available_count(), 2);
 
-    pool.release(item);
+    pool.release(item); // Pushes 1 back to end. Queue: [2, 3, 1]
     assert_eq!(pool.available_count(), 3);
+
+    let item2 = pool.acquire_async(None).await.unwrap();
+    assert_eq!(item2, 2);
   }
 
   #[tokio::test]

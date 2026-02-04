@@ -6,7 +6,7 @@ use crate::pool::{CorePool, PoolError};
 use napi::bindgen_prelude::*;
 use napi::sys;
 use napi_derive::napi;
-use parking_lot::Mutex;
+use parking_lot::RwLock;
 use std::sync::Arc;
 
 struct WrappedRef(sys::napi_ref);
@@ -16,7 +16,7 @@ unsafe impl Sync for WrappedRef {}
 
 #[napi]
 pub struct GenericObjectPool {
-  resources: Arc<Mutex<Vec<Option<WrappedRef>>>>,
+  resources: Arc<RwLock<Vec<Option<WrappedRef>>>>,
   inner: CorePool<usize>,
 }
 
@@ -40,8 +40,21 @@ impl GenericObjectPool {
       indices.push(i);
     }
 
+    let resources = Arc::new(RwLock::new(refs));
+
+    // Register cleanup hook
+    let cleanup_resources = resources.clone();
+    env.add_env_cleanup_hook(cleanup_resources, |resources| {
+      // Attempt to acquire write lock and clear resources
+      // We use try_write to avoid deadlocks if something somehow holds a lock during shutdown,
+      // though in N-API context single thread loop, contention should be minimal at this stage.
+      if let Some(mut guard) = resources.try_write() {
+        guard.clear();
+      }
+    })?;
+
     Ok(GenericObjectPool {
-      resources: Arc::new(Mutex::new(refs)),
+      resources,
       inner: CorePool::new(indices),
     })
   }
@@ -50,7 +63,7 @@ impl GenericObjectPool {
   pub fn acquire(&self, env: Env) -> Result<Object<'_>> {
     match self.inner.try_acquire() {
       Some(idx) => {
-        let resources = self.resources.lock();
+        let resources = self.resources.read();
         if let Some(Some(r)) = resources.get(idx) {
           unsafe {
             let mut result = std::ptr::null_mut();
@@ -89,7 +102,7 @@ impl GenericObjectPool {
 
   #[napi]
   pub fn get_resource(&'_ self, env: Env, idx: u32) -> Result<Object<'_>> {
-    let resources = self.resources.lock();
+    let resources = self.resources.read();
     if let Some(Some(r)) = resources.get(idx as usize) {
       unsafe {
         let mut result = std::ptr::null_mut();
@@ -106,7 +119,7 @@ impl GenericObjectPool {
 
   #[napi]
   pub fn release(&self, env: Env, resource: Object) -> Result<()> {
-    let resources = self.resources.lock();
+    let resources = self.resources.read();
     let mut found_idx = None;
 
     let resource_raw = resource.raw();
@@ -115,6 +128,7 @@ impl GenericObjectPool {
       if let Some(r) = opt_ref {
         unsafe {
           let mut val_ptr: sys::napi_value = std::ptr::null_mut();
+          // We can check equality only if we can get the reference value.
           let status = sys::napi_get_reference_value(env.raw(), r.0, &mut val_ptr);
           if status == sys::Status::napi_ok {
             let mut result = false;
@@ -127,6 +141,8 @@ impl GenericObjectPool {
         }
       }
     }
+    // Drop read lock
+    drop(resources);
 
     if let Some(idx) = found_idx {
       self.inner.release(idx);
@@ -138,7 +154,8 @@ impl GenericObjectPool {
 
   #[napi]
   pub fn add(&self, env: Env, resource: Object) -> Result<()> {
-    let mut resources = self.resources.lock();
+    // Write lock needed
+    let mut resources = self.resources.write();
     let mut ref_ptr = std::ptr::null_mut();
     unsafe {
       let status = sys::napi_create_reference(env.raw(), resource.raw(), 1, &mut ref_ptr);
@@ -155,7 +172,7 @@ impl GenericObjectPool {
   #[napi]
   pub fn remove_one(&self, env: Env) -> Result<bool> {
     if let Some(idx) = self.inner.remove_one() {
-      let mut resources = self.resources.lock();
+      let mut resources = self.resources.write();
       if idx < resources.len() {
         if let Some(r) = resources[idx].take() {
           unsafe {
@@ -186,7 +203,7 @@ impl GenericObjectPool {
 
   #[napi]
   pub fn destroy(&self, env: Env) -> Result<()> {
-    let mut resources = self.resources.lock();
+    let mut resources = self.resources.write();
     for idx in self.inner.drain() {
       if idx < resources.len() {
         if let Some(r) = resources[idx].take() {
