@@ -5,6 +5,7 @@ export declare class GenericObjectPool {
   acquire(): object
   acquireIdxAsync(timeoutMs?: number | undefined | null): Promise<number>
   getResource(idx: number): object
+  acquireResourceAsync(timeoutMs?: number | undefined | null): Promise<AcquiredObject>
   release(resource: object): void
   add(resource: object): void
   removeOne(): boolean

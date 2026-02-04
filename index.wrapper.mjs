@@ -29,8 +29,7 @@ export class GenericObjectPool {
    * @returns {Promise<T>} Promise that resolves with a resource when one becomes available
    */
   async acquireAsync(timeoutMs) {
-    const idx = await this.pool.acquireIdxAsync(timeoutMs)
-    return this.pool.getResource(idx)
+    return this.pool.acquireResourceAsync(timeoutMs)
   }
 
   /**

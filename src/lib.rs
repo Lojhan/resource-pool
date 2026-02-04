@@ -14,6 +14,27 @@ struct WrappedRef(sys::napi_ref);
 unsafe impl Send for WrappedRef {}
 unsafe impl Sync for WrappedRef {}
 
+pub struct AcquiredObject {
+  idx: u32,
+  resources: Arc<RwLock<Vec<Option<WrappedRef>>>>,
+}
+
+impl ToNapiValue for AcquiredObject {
+  unsafe fn to_napi_value(env: sys::napi_env, val: Self) -> Result<sys::napi_value> {
+    let resources = val.resources.read();
+    if let Some(Some(r)) = resources.get(val.idx as usize) {
+      let mut result = std::ptr::null_mut();
+      let status = sys::napi_get_reference_value(env, r.0, &mut result);
+      if status != sys::Status::napi_ok {
+        return Err(Error::from_status(status.into()));
+      }
+      Ok(result)
+    } else {
+      Err(Error::from_reason("Resource invalid or removed"))
+    }
+  }
+}
+
 #[napi]
 pub struct GenericObjectPool {
   resources: Arc<RwLock<Vec<Option<WrappedRef>>>>,
@@ -115,6 +136,28 @@ impl GenericObjectPool {
     } else {
       Err(Error::from_reason("Resource invalid or removed"))
     }
+  }
+
+  #[napi]
+  pub async fn acquire_resource_async(&self, timeout_ms: Option<u32>) -> Result<AcquiredObject> {
+    let inner = self.inner.clone();
+
+    let permit = inner
+      .acquire_async(timeout_ms.map(|t| t as u64))
+      .await
+      .map_err(|e| match e {
+        PoolError::Timeout => Error::from_reason(format!(
+          "Failed to acquire resource within {:?}ms timeout",
+          timeout_ms.unwrap_or(0)
+        )),
+        PoolError::Empty => Error::from_reason("Pool empty"),
+        _ => Error::from_reason(e.to_string()),
+      })?;
+
+    Ok(AcquiredObject {
+      idx: permit as u32,
+      resources: self.resources.clone(),
+    })
   }
 
   #[napi]
