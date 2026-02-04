@@ -1,7 +1,6 @@
-
-const { strict: assert } = require('node:assert');
-const { describe, test } = require('node:test');
-const { GenericObjectPool } = require('../../../index.wrapper.cjs');
+const { strict: assert } = require('node:assert')
+const { describe, test } = require('node:test')
+const { GenericObjectPool } = require('../../../index.wrapper.cjs')
 
 describe('GenericObjectPool - Resources', () => {
   test('should add new resources dynamically', () => {

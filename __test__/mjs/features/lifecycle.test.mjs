@@ -1,11 +1,10 @@
-
 import { strict as assert } from 'node:assert'
 import { describe, test } from 'node:test'
 import { GenericObjectPool } from '../../../index.wrapper.mjs'
 
 describe('GenericObjectPool - Lifecycle & Observability', () => {
   test('observability getters work', async () => {
-    const pool = new GenericObjectPool([{id: 1}, {id: 2}])
+    const pool = new GenericObjectPool([{ id: 1 }, { id: 2 }])
 
     assert.strictEqual(pool.size, 2)
     assert.strictEqual(pool.available, 2)
@@ -25,7 +24,7 @@ describe('GenericObjectPool - Lifecycle & Observability', () => {
     // Trigger pending
     const p3 = pool.acquireAsync()
     // Small delay to let it hit the semaphore wait
-    await new Promise(resolve => setTimeout(resolve, 10))
+    await new Promise((resolve) => setTimeout(resolve, 10))
 
     assert.strictEqual(pool.pendingCount, 1)
 
@@ -35,7 +34,7 @@ describe('GenericObjectPool - Lifecycle & Observability', () => {
   })
 
   test('destroy() should close the pool', async () => {
-    const pool = new GenericObjectPool([{id: 1}])
+    const pool = new GenericObjectPool([{ id: 1 }])
     pool.destroy()
 
     try {

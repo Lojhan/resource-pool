@@ -1,7 +1,6 @@
-
-const { strict: assert } = require('node:assert');
-const { describe, test } = require('node:test');
-const { GenericObjectPool } = require('../../../index.wrapper.cjs');
+const { strict: assert } = require('node:assert')
+const { describe, test } = require('node:test')
+const { GenericObjectPool } = require('../../../index.wrapper.cjs')
 
 describe('GenericObjectPool - Concurrency & Async', () => {
   test('should handle 3 parallel operations with only 2 resources', async () => {
@@ -91,7 +90,7 @@ describe('GenericObjectPool - Concurrency & Async', () => {
     const pool = new GenericObjectPool([resource])
 
     assert.strictEqual(pool.availableCount(), 1)
-    
+
     await pool.use(async (r) => {
       assert.strictEqual(r, resource)
       assert.strictEqual(pool.availableCount(), 0)

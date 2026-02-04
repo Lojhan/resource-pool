@@ -168,7 +168,8 @@ mod tests {
     assert!(duration >= Duration::from_millis(200));
   }
 
-  #[tokio::test(flavor = "multi_thread")]
+  #[cfg_attr(not(target_arch = "wasm32"), tokio::test(flavor = "multi_thread"))]
+  #[cfg_attr(target_arch = "wasm32", tokio::test)]
   async fn test_concurrency() {
     let pool = CorePool::new(vec![1]); // Only 1 item
     let pool_clone = pool.clone();

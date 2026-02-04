@@ -1,4 +1,3 @@
-
 import { strict as assert } from 'node:assert'
 import { describe, test } from 'node:test'
 import { GenericObjectPool } from '../../../index.wrapper.mjs'
@@ -91,7 +90,7 @@ describe('GenericObjectPool - Concurrency & Async', () => {
     const pool = new GenericObjectPool([resource])
 
     assert.strictEqual(pool.availableCount(), 1)
-    
+
     await pool.use(async (r) => {
       assert.strictEqual(r, resource)
       assert.strictEqual(pool.availableCount(), 0)
