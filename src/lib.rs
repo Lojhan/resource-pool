@@ -81,4 +81,19 @@ impl GenericObjectPool {
   pub fn available_count(&self) -> u32 {
     self.inner.available_count() as u32
   }
+
+  #[napi]
+  pub fn size(&self) -> u32 {
+    self.inner.size() as u32
+  }
+
+  #[napi]
+  pub fn pending_count(&self) -> u32 {
+    self.inner.pending_count() as u32
+  }
+
+  #[napi]
+  pub fn destroy(&self) {
+    self.inner.destroy();
+  }
 }
