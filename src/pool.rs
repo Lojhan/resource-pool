@@ -62,7 +62,8 @@ impl<T> CorePool<T> {
         Err(_) => return Err(PoolError::Timeout),
       }
     } else {
-      self.semaphore
+      self
+        .semaphore
         .acquire()
         .await
         .map_err(|_| PoolError::Closed)?
@@ -150,25 +151,25 @@ mod tests {
     let handle = tokio::spawn(async move {
       tokio::time::sleep(Duration::from_millis(50)).await;
       // Simulate releasing a resource (or adding a new one)
-      pool_clone.release(2); 
+      pool_clone.release(2);
     });
 
     // Attempt to acquire another - should wait for the task to release/add
     let start = Instant::now();
     let _item2 = pool.acquire_async(Some(500)).await.unwrap();
-    
+
     handle.await.unwrap();
-    
+
     // Should have taken at least 50ms
-    assert!(start.elapsed().as_millis() >= 40); 
-    
+    assert!(start.elapsed().as_millis() >= 40);
+
     assert_eq!(_item2, 2);
   }
-  
+
   #[test]
   fn test_try_acquire() {
-      let pool = CorePool::new(vec![10]);
-      assert!(pool.try_acquire().is_some());
-      assert!(pool.try_acquire().is_none());
+    let pool = CorePool::new(vec![10]);
+    assert!(pool.try_acquire().is_some());
+    assert!(pool.try_acquire().is_none());
   }
 }

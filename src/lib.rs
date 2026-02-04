@@ -82,4 +82,3 @@ impl GenericObjectPool {
     self.inner.available_count() as u32
   }
 }
-
