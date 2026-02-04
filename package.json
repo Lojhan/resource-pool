@@ -1,6 +1,6 @@
 {
   "name": "@lojhan/resource-pool",
-  "version": "0.5.3",
+  "version": "0.5.4",
   "description": "A generic resource pool implementation for Node.js using N-API and Rust.",
   "main": "index.wrapper.cjs",
   "types": "index.wrapper.d.ts",
