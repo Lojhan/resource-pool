@@ -1,7 +1,7 @@
 /**
  * Type-safe wrapper for a generic resource pool
  */
-export class GenericObjectPool<T> {
+export declare class GenericObjectPool<T> {
   /**
    * Create a new resource pool
    * @param resources - Initial resources in the pool
@@ -14,7 +14,7 @@ export class GenericObjectPool<T> {
    * @returns A resource from the pool
    * @throws Error if no resources are available
    */
-  acquire(): PoolGuard<T>
+  acquire(): T
 
   /**
    * Acquire a resource from the pool asynchronously with retry
@@ -22,13 +22,13 @@ export class GenericObjectPool<T> {
    * @returns Promise that resolves with a resource when one becomes available
    * @throws Error if timeout is exceeded before acquiring a resource
    */
-  acquireAsync(timeoutMs?: number): Promise<PoolGuard<T>>
+  acquireAsync(timeoutMs?: number): Promise<T>
 
   /**
    * Release a resource back to the pool
    * @param resource - The resource to release
    */
-  release(resource: PoolGuard<T>): void
+  release(resource: T): void
 
   /**
    * Add a new resource to the pool
@@ -87,22 +87,4 @@ export class GenericObjectPool<T> {
    * Destroy the pool and stop accepting new acquires
    */
   destroy(): void
-}
-
-/**
- * The RAII Guard.
- * When this object is returned to JS, it holds the "permit".
- * If JS garbage collects this object, `drop` fires and releases the resource.
- */
-export declare class PoolGuard<T> {
-  /**
-   * Accessor for the underlying resource.
-   * This is an O(1) lookup.
-   */
-  get resource(): T
-  /**
-   * Manually release the resource back to the pool.
-   * O(1) operation (no linear scan required).
-   */
-  release(): void
 }
