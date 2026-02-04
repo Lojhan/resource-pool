@@ -14,7 +14,9 @@ function findTests(currentDir, list) {
   for (const entry of entries) {
     const fullPath = path.join(currentDir, entry.name)
     if (entry.isDirectory()) {
-      findTests(fullPath, list)
+      if (entry.name !== 'node_modules') {
+        findTests(fullPath, list)
+      }
     } else if (entry.isFile() && (entry.name.endsWith('.test.cjs') || entry.name.endsWith('.test.mjs'))) {
       list.push(fullPath)
     }
