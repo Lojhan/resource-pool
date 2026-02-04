@@ -3,7 +3,8 @@
 export declare class GenericObjectPool {
   constructor(initialValues: Array<object>)
   acquire(): object
-  acquireAsync(timeoutMs?: number | undefined | null): Promise<object>
+  acquireIdxAsync(timeoutMs?: number | undefined | null): Promise<number>
+  getResource(idx: number): object
   release(resource: object): void
   add(resource: object): void
   removeOne(): boolean
