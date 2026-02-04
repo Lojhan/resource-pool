@@ -62,6 +62,19 @@ impl<T> CorePool<T> {
   }
 
   pub async fn acquire_async(&self, timeout_ms: Option<u64>) -> Result<T, PoolError> {
+    // Fast path: try to acquire synchronously first
+    if let Ok(permit) = self.semaphore.try_acquire() {
+      permit.forget();
+      let mut pool = self.pool.lock();
+      if let Some(item) = pool.pop_back() {
+        return Ok(item);
+      } else {
+        // Should not happen if semaphore and pool are in sync, but for safety:
+        // If we got a permit but no item, release permit and continue to wait (race condition fix)
+        self.semaphore.add_permits(1);
+      }
+    }
+
     self.pending.fetch_add(1, Ordering::Relaxed);
     let permit_result = if let Some(ms) = timeout_ms {
       timeout(Duration::from_millis(ms), self.semaphore.acquire()).await
