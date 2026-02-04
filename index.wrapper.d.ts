@@ -1,7 +1,7 @@
 /**
  * Type-safe wrapper for a generic resource pool
  */
-export class GenericObjectPool<T> {
+export declare class GenericObjectPool<T> {
   /**
    * Create a new resource pool
    * @param resources - Initial resources in the pool

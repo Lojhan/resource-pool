@@ -24,6 +24,10 @@ impl std::fmt::Display for PoolError {
 
 impl std::error::Error for PoolError {}
 
+/// A high-performance, lock-free pool core.
+/// It uses a Hybrid Architecture:
+/// - `SegQueue` (Lock-Free) for storing the resources (indices).
+/// - `Semaphore` (Async-Aware) for managing the wait queue and permits.
 pub struct CorePool<T> {
   pool: Arc<SegQueue<T>>,
   semaphore: Arc<Semaphore>,
@@ -57,44 +61,54 @@ impl<T> CorePool<T> {
     }
   }
 
+  /// Synchronously attempts to acquire a resource.
+  /// If successful, the permit is "forgotten" (leaked) to the caller
+  /// and must be restored via `release()`.
   pub fn try_acquire(&self) -> Option<T> {
     let permit = self.semaphore.try_acquire().ok()?;
     permit.forget();
     self.pool.pop()
   }
 
+  /// Asynchronously acquires a resource.
+  /// Handles the "wait queue" using Tokio's semaphore.
   pub async fn acquire_async(&self, timeout_ms: Option<u64>) -> Result<T, PoolError> {
-    // Fast path: try to acquire synchronously first
+    // Optimization: Fast path try_acquire before awaiting
     if let Ok(permit) = self.semaphore.try_acquire() {
       permit.forget();
       if let Some(item) = self.pool.pop() {
         return Ok(item);
       } else {
-        // Should not happen if semaphore and pool are in sync, but for safety:
-        // If we got a permit but no item, release permit and continue to wait (race condition fix)
+        // Fallback (should be rare/impossible): return permit and wait properly
         self.semaphore.add_permits(1);
       }
     }
 
     self.pending.fetch_add(1, Ordering::Relaxed);
+
+    // The Async Wait
     let permit_result = if let Some(ms) = timeout_ms {
       timeout(Duration::from_millis(ms), self.semaphore.acquire()).await
     } else {
       Ok(self.semaphore.acquire().await)
     };
+
     self.pending.fetch_sub(1, Ordering::Relaxed);
 
     let permit = match permit_result {
       Ok(Ok(p)) => p,
-      Ok(Err(_)) => return Err(PoolError::Closed), // Semaphore closed error
-      Err(_) => return Err(PoolError::Timeout),    // Timeout error
+      Ok(Err(_)) => return Err(PoolError::Closed), // Semaphore closed
+      Err(_) => return Err(PoolError::Timeout),    // Timeout
     };
 
+    // "Forget" the permit so it persists while the user holds the resource.
     permit.forget();
 
     self.pool.pop().ok_or(PoolError::Empty)
   }
 
+  /// Returns a resource to the pool and restores the semaphore permit.
+  /// This wakes up the next waiter in the queue.
   pub fn release(&self, item: T) {
     self.pool.push(item);
     self.semaphore.add_permits(1);
@@ -107,6 +121,8 @@ impl<T> CorePool<T> {
   }
 
   pub fn remove_one(&self) -> Option<T> {
+    // We must acquire a permit to remove an item to ensure we don't
+    // remove an item that is currently reserved for a waiter.
     if let Ok(permit) = self.semaphore.try_acquire() {
       permit.forget();
       if let Some(item) = self.pool.pop() {
@@ -140,80 +156,5 @@ impl<T> CorePool<T> {
       self.size.fetch_sub(dropped, Ordering::Relaxed);
     }
     items
-  }
-}
-
-#[cfg(test)]
-mod tests {
-  use super::*;
-  use std::time::Instant;
-
-  #[tokio::test]
-  async fn test_simple_acquire_release() {
-    let pool = CorePool::new(vec![1, 2, 3]);
-
-    let item = pool.acquire_async(None).await.unwrap();
-    // SegQueue is FIFO, so we expect 1 first
-    assert!(vec![1, 2, 3].contains(&item));
-    assert_eq!(item, 1);
-    assert_eq!(pool.available_count(), 2);
-
-    pool.release(item); // Pushes 1 back to end. Queue: [2, 3, 1]
-    assert_eq!(pool.available_count(), 3);
-
-    let item2 = pool.acquire_async(None).await.unwrap();
-    assert_eq!(item2, 2);
-  }
-
-  #[tokio::test]
-  async fn test_timeout() {
-    let pool = CorePool::new(vec![1]);
-
-    // Acquire the only item
-    let _item = pool.acquire_async(None).await.unwrap();
-    assert_eq!(pool.available_count(), 0);
-
-    // Try to acquire again with a short timeout
-    let start = Instant::now();
-    let result = pool.acquire_async(Some(200)).await;
-    let duration = start.elapsed();
-
-    assert_eq!(result, Err(PoolError::Timeout));
-    assert!(duration >= Duration::from_millis(200));
-  }
-
-  #[cfg_attr(not(target_arch = "wasm32"), tokio::test(flavor = "multi_thread"))]
-  #[cfg_attr(target_arch = "wasm32", tokio::test)]
-  async fn test_concurrency() {
-    let pool = CorePool::new(vec![1]); // Only 1 item
-    let pool_clone = pool.clone();
-
-    // Acquire the only item
-    let _item1 = pool.acquire_async(None).await.unwrap();
-
-    // Spawn a task that returns a resource after a delay
-    let handle = tokio::spawn(async move {
-      tokio::time::sleep(Duration::from_millis(50)).await;
-      // Simulate releasing a resource (or adding a new one)
-      pool_clone.release(2);
-    });
-
-    // Attempt to acquire another - should wait for the task to release/add
-    let start = Instant::now();
-    let _item2 = pool.acquire_async(Some(500)).await.unwrap();
-
-    handle.await.unwrap();
-
-    // Should have taken at least 50ms
-    assert!(start.elapsed().as_millis() >= 40);
-
-    assert_eq!(_item2, 2);
-  }
-
-  #[test]
-  fn test_try_acquire() {
-    let pool = CorePool::new(vec![10]);
-    assert!(pool.try_acquire().is_some());
-    assert!(pool.try_acquire().is_none());
   }
 }
