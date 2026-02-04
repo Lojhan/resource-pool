@@ -70,10 +70,27 @@ class GenericObjectPool {
    * Use a resource from the pool with automatic release
    * @template R
    * @param {(resource: T) => Promise<R>} fn - Function to execute with the resource
+   * @param {object} [options] - Configuration options
+   * @param {boolean} [options.optimistic=true] - Try to acquire synchronously first
+   * @param {number|undefined} [options.timeout] - Timeout in milliseconds for async acquisition
    * @returns {Promise<R>} Result of the function
    */
-  async use(fn) {
-    const resource = await this.acquireAsync()
+  async use(fn, { optimistic = true, timeout } = {}) {
+    let resource
+
+    if (optimistic) {
+      try {
+        // Optimistically try sync first
+        resource = this.pool.acquire()
+      } catch {
+        // Fallback to async waiting if empty
+      }
+    }
+
+    if (!resource) {
+      resource = await this.acquireAsync(timeout)
+    }
+
     try {
       return await fn(resource)
     } finally {

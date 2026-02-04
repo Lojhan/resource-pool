@@ -51,8 +51,17 @@ export class GenericObjectPool<T> {
   /**
    * Use a resource from the pool with automatic release
    * @param fn - Function to execute with the resource
+   * @param options - Configuration options for acquisition
    */
-  use<R>(fn: (resource: T) => Promise<R>): Promise<R>
+  use<R>(
+    fn: (resource: T) => Promise<R>,
+    options?: {
+      /** Try to acquire synchronously first. Defaults to true. */
+      optimistic?: boolean
+      /** Timeout in milliseconds for async acquisition */
+      timeout?: number
+    },
+  ): Promise<R>
 
   /**
    * Get the number of available resources

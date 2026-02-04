@@ -108,4 +108,4 @@ const { instance: __napiInstance, module: __wasiModule, napiModule: __napiModule
   },
 })
 module.exports = __napiModule.exports
-
+module.exports.GenericObjectPool = __napiModule.exports.GenericObjectPool

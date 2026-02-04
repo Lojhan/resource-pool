@@ -36,5 +36,5 @@ if (testFiles.length === 0) {
 }
 
 console.log(`Running ${testFiles.length} test files in ${dir}...`)
-const result = spawnSync(process.execPath, ['--test', ...testFiles], { stdio: 'inherit' })
+const result = spawnSync(process.execPath, ['--expose-gc', '--test', ...testFiles], { stdio: 'inherit' })
 process.exit(result.status ?? 1)

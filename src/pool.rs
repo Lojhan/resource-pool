@@ -1,5 +1,7 @@
+use parking_lot::Mutex;
+use std::collections::VecDeque;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Semaphore;
 use tokio::time::timeout;
@@ -8,7 +10,6 @@ use tokio::time::timeout;
 pub enum PoolError {
   Timeout,
   Closed,
-  LockPoisoned,
   Empty,
 }
 
@@ -17,7 +18,6 @@ impl std::fmt::Display for PoolError {
     match self {
       PoolError::Timeout => write!(f, "Timeout acquiring resource"),
       PoolError::Closed => write!(f, "Pool closed"),
-      PoolError::LockPoisoned => write!(f, "Lock poisoned"),
       PoolError::Empty => write!(f, "Pool empty"),
     }
   }
@@ -26,7 +26,7 @@ impl std::fmt::Display for PoolError {
 impl std::error::Error for PoolError {}
 
 pub struct CorePool<T> {
-  pool: Arc<Mutex<Vec<T>>>,
+  pool: Arc<Mutex<VecDeque<T>>>,
   semaphore: Arc<Semaphore>,
   size: Arc<AtomicUsize>,
   pending: Arc<AtomicUsize>,
@@ -47,7 +47,7 @@ impl<T> CorePool<T> {
   pub fn new(items: Vec<T>) -> Self {
     let count = items.len();
     Self {
-      pool: Arc::new(Mutex::new(items)),
+      pool: Arc::new(Mutex::new(VecDeque::from(items))),
       semaphore: Arc::new(Semaphore::new(count)),
       size: Arc::new(AtomicUsize::new(count)),
       pending: Arc::new(AtomicUsize::new(0)),
@@ -57,8 +57,8 @@ impl<T> CorePool<T> {
   pub fn try_acquire(&self) -> Option<T> {
     let permit = self.semaphore.try_acquire().ok()?;
     permit.forget();
-    let mut pool = self.pool.lock().ok()?;
-    pool.pop()
+    let mut pool = self.pool.lock();
+    pool.pop_back()
   }
 
   pub async fn acquire_async(&self, timeout_ms: Option<u64>) -> Result<T, PoolError> {
@@ -78,36 +78,33 @@ impl<T> CorePool<T> {
 
     permit.forget();
 
-    let mut pool = self.pool.lock().map_err(|_| PoolError::LockPoisoned)?;
-    pool.pop().ok_or(PoolError::Empty)
+    let mut pool = self.pool.lock();
+    pool.pop_back().ok_or(PoolError::Empty)
   }
 
   pub fn release(&self, item: T) {
-    if let Ok(mut pool) = self.pool.lock() {
-      pool.push(item);
-      self.semaphore.add_permits(1);
-    }
+    let mut pool = self.pool.lock();
+    pool.push_back(item);
+    self.semaphore.add_permits(1);
   }
 
   pub fn add(&self, item: T) {
-    if let Ok(mut pool) = self.pool.lock() {
-      pool.push(item);
-      self.semaphore.add_permits(1);
-      self.size.fetch_add(1, Ordering::Relaxed);
-    }
+    let mut pool = self.pool.lock();
+    pool.push_back(item);
+    self.semaphore.add_permits(1);
+    self.size.fetch_add(1, Ordering::Relaxed);
   }
 
-  pub fn remove_one(&self) -> bool {
+  pub fn remove_one(&self) -> Option<T> {
     if let Ok(permit) = self.semaphore.try_acquire() {
       permit.forget();
-      if let Ok(mut pool) = self.pool.lock() {
-        if pool.pop().is_some() {
-          self.size.fetch_sub(1, Ordering::Relaxed);
-          return true;
-        }
+      let mut pool = self.pool.lock();
+      if let Some(item) = pool.pop_back() {
+        self.size.fetch_sub(1, Ordering::Relaxed);
+        return Some(item);
       }
     }
-    false
+    None
   }
 
   pub fn available_count(&self) -> usize {
@@ -122,15 +119,15 @@ impl<T> CorePool<T> {
     self.pending.load(Ordering::Relaxed)
   }
 
-  pub fn destroy(&self) {
+  pub fn drain(&self) -> Vec<T> {
     self.semaphore.close();
-    if let Ok(mut pool) = self.pool.lock() {
-      let dropped = pool.len();
-      pool.clear();
-      if dropped > 0 {
-        self.size.fetch_sub(dropped, Ordering::Relaxed);
-      }
+    let mut pool = self.pool.lock();
+    let dropped = pool.len();
+    let items: Vec<T> = pool.drain(..).collect();
+    if dropped > 0 {
+      self.size.fetch_sub(dropped, Ordering::Relaxed);
     }
+    items
   }
 }
 
