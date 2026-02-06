@@ -115,7 +115,7 @@ describe('GenericObjectPool - Dynamic Sizing', () => {
       // After acquiring all initial resources, available should be 0 (unless auto-scale already triggered)
       const availableAfterAcquire = pool.available
       const sizeAfterAcquire = pool.size
-      
+
       // These resources are in use, so available should be less than or equal to size
       assert.ok(availableAfterAcquire <= sizeAfterAcquire)
 
