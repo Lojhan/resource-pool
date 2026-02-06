@@ -225,7 +225,6 @@ export class EnginePool {
  * @template T
  */
 export class DynamicObjectPool extends StaticObjectPool {
-  #dynamicSizing = true
   #minSize = 0
   #maxSize = Infinity
   #resourceFactory = null
@@ -318,9 +317,7 @@ export class DynamicObjectPool extends StaticObjectPool {
     }
 
     if (pool.pool.size() < initialTarget) {
-      pool.#fillToTarget(initialTarget).catch((err) =>
-        console.error('Failed to fill initial resources:', err),
-      )
+      pool.#fillToTarget(initialTarget).catch((err) => console.error('Failed to fill initial resources:', err))
     }
 
     return pool
@@ -535,8 +532,7 @@ export class DynamicObjectPool extends StaticObjectPool {
     this.#lastActivityAt = Date.now()
 
     if (this.#resourceDestroyer) {
-      Promise.resolve(this.#resourceDestroyer(resource))
-        .catch((err) => console.error('Resource destroyer error:', err))
+      Promise.resolve(this.#resourceDestroyer(resource)).catch((err) => console.error('Resource destroyer error:', err))
     }
 
     this.#metrics.resourcesDestroyed++
@@ -556,8 +552,9 @@ export class DynamicObjectPool extends StaticObjectPool {
     if (this.#resourceDestroyer) {
       for (const resource of this.resources) {
         if (resource !== null) {
-          Promise.resolve(this.#resourceDestroyer(resource))
-            .catch((err) => console.error('Resource destroyer error:', err))
+          Promise.resolve(this.#resourceDestroyer(resource)).catch((err) =>
+            console.error('Resource destroyer error:', err),
+          )
         }
       }
     }

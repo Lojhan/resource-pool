@@ -7,8 +7,8 @@
  */
 
 import { strict as assert } from 'node:assert'
-import { test } from 'node:test'
 import process from 'node:process'
+import { test } from 'node:test'
 import { setTimeout } from 'node:timers/promises'
 
 import { GenericObjectPool } from '../../index.wrapper.mjs'

@@ -32,7 +32,7 @@ export interface PoolMetrics {
   resourcesDestroyed: number
 }
 
-export declare class StaticObjectPool<T = any> {
+export declare class StaticObjectPool<T> {
   constructor(resources: T[])
   acquire(): T
   acquireAsync(timeoutMs?: number): Promise<T>
@@ -66,7 +66,7 @@ export declare class EnginePool {
   destroy(): void
 }
 
-export declare class DynamicObjectPool<T = any> extends StaticObjectPool<T> {
+export declare class DynamicObjectPool<T> extends StaticObjectPool<T> {
   static withDynamicSizing<T>(config: DynamicSizingConfig<T>): DynamicObjectPool<T>
   acquireAsync(timeoutMs?: number): Promise<T>
   release(resource: T): void
