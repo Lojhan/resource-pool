@@ -57,11 +57,26 @@ export interface PoolMetrics {
 /**
  * Type-safe wrapper for a generic resource pool
  */
-export declare class GenericObjectPool<T> {
+export declare class GenericObjectPool<T> extends StaticObjectPool<T> {
   /**
    * Create a pool with dynamic sizing capabilities
    */
-  static withDynamicSizing<T>(config: DynamicSizingConfig<T>): GenericObjectPool<T>
+  static withDynamicSizing<T>(config: DynamicSizingConfig<T>): DynamicObjectPool<T>
+
+  /**
+   * Create a pool with dynamic sizing capabilities
+   */
+  static dynamic<T>(config: DynamicSizingConfig<T>): DynamicObjectPool<T>
+
+  /**
+   * Create a pool using the static implementation
+   */
+  static static<T>(resources: T[]): StaticObjectPool<T>
+
+  /**
+   * Create an index-only pool implementation
+   */
+  static engine(size: number): EnginePool
 
   /**
    * Create a new resource pool
@@ -128,39 +143,50 @@ export declare class GenericObjectPool<T> {
    * Get pool metrics (for dynamic pools)
    */
   getMetrics(): PoolMetrics
+}
 
-  /**
-   * Get the number of available resources
-   */
-  readonly available: number
+export declare class StaticObjectPool<T = any> {
+  constructor(resources: T[])
+  acquire(): T
+  acquireAsync(timeoutMs?: number): Promise<T>
+  release(resource: T): void
+  add(resource: T): void
+  removeOne(): boolean
+  availableCount(): number
+  getMetrics(): PoolMetrics
+  use<R>(fn: (resource: T) => Promise<R>, options?: { optimistic?: boolean; timeout?: number }): Promise<R>
+  get size(): number
+  get pendingCount(): number
+  get available(): number
+  get numUsed(): number
+  destroy(): void
+}
 
-  /**
-   * Get the total number of resources managed by the pool
-   */
-  readonly size: number
+export declare class DynamicObjectPool<T = any> extends StaticObjectPool<T> {
+  static withDynamicSizing<T>(config: DynamicSizingConfig<T>): DynamicObjectPool<T>
+  acquireAsync(timeoutMs?: number): Promise<T>
+  release(resource: T): void
+  add(resource: T): void
+  removeOne(): boolean
+  destroy(): void
+  getMetrics(): PoolMetrics
+  get minSize(): number
+  get maxSize(): number
+}
 
-  /**
-   * Minimum pool size (for dynamic pools)
-   */
-  readonly minSize: number
-
-  /**
-   * Maximum pool size (for dynamic pools)
-   */
-  readonly maxSize: number
-
-  /**
-   * Get the number of pending acquire requests
-   */
-  readonly pendingCount: number
-
-  /**
-   * Get the number of used resources
-   */
-  readonly numUsed: number
-
-  /**
-   * Destroy the pool and stop accepting new acquires
-   */
+export declare class EnginePool {
+  constructor(size: number)
+  acquire(): number
+  acquireAsync(timeoutMs?: number): Promise<number>
+  release(idx: number): void
+  add(idx: number): void
+  removeOne(): number | null
+  use<R>(fn: (idx: number) => Promise<R>, options?: { optimistic?: boolean; timeout?: number }): Promise<R>
+  availableCount(): number
+  getMetrics(): PoolMetrics
+  get size(): number
+  get pendingCount(): number
+  get available(): number
+  get numUsed(): number
   destroy(): void
 }

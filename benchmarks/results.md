@@ -1,10 +1,8 @@
 | Command                                                 |     Mean [ms] | Min [ms] | Max [ms] |    Relative |
 | :------------------------------------------------------ | ------------: | -------: | -------: | ----------: |
-| `node benchmarks/run-single.js generic-object-pool-use` |  312.2 ± 19.2 |    280.9 |    345.6 | 1.62 ± 0.14 |
-| `node benchmarks/run-single.js generic-object-pool`     |  192.6 ± 11.1 |    168.3 |    207.1 |        1.00 |
-| `node benchmarks/run-single.js generic-pool-use`        |  875.1 ± 36.4 |    829.6 |    936.4 | 4.54 ± 0.32 |
-| `node benchmarks/run-single.js generic-pool`            |  848.6 ± 37.7 |    772.4 |    886.8 | 4.41 ± 0.32 |
-| `node benchmarks/run-single.js tarn-use`                | 1183.7 ± 54.5 |   1084.6 |   1265.9 | 6.15 ± 0.45 |
-| `node benchmarks/run-single.js tarn`                    | 1153.1 ± 60.2 |   1039.0 |   1255.7 | 5.99 ± 0.46 |
-| ± 0.32                                                  |
-| `node benchmarks/run-single.js tarn-use`                | 1183.7 ± 54.5 |   1084.6 |   1265.9 | 6.15 ± 0.45 |
+| `node benchmarks/run-single.js generic-object-pool-use` |  573.0 ± 33.0 |    519.2 |    602.2 | 1.28 ± 0.11 |
+| `node benchmarks/run-single.js generic-object-pool`     |  446.2 ± 27.5 |    403.5 |    489.9 |        1.00 |
+| `node benchmarks/run-single.js generic-pool-use`        |  879.3 ± 38.7 |    822.7 |    918.0 | 1.97 ± 0.15 |
+| `node benchmarks/run-single.js generic-pool`            |  835.2 ± 38.3 |    776.1 |    878.1 | 1.87 ± 0.14 |
+| `node benchmarks/run-single.js tarn-use`                | 1208.8 ± 76.0 |   1108.4 |   1319.7 | 2.71 ± 0.24 |
+| `node benchmarks/run-single.js tarn`                    | 1159.0 ± 51.7 |   1055.3 |   1248.5 | 2.60 ± 0.20 |

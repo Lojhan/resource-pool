@@ -1,11 +1,15 @@
 import { GenericObjectPool } from '@lojhan/resource-pool'
 
 export default {
-  name: 'GenericObjectPool (Static/Sync)',
+  name: 'GenericObjectPool (Dynamic/Sync)',
 
   setup: async (poolSize) => {
-    const resources = Array.from({ length: poolSize }, (_, i) => ({ id: i }))
-    return new GenericObjectPool(resources)
+    return GenericObjectPool.dynamic({
+      min: poolSize,
+      max: poolSize,
+      initial: poolSize,
+      resourceFactory: () => ({}),
+    })
   },
 
   run: async (pool, iterations) => {
@@ -16,6 +20,6 @@ export default {
   },
 
   teardown: async (pool) => {
-    // No explicit teardown needed for the native pool in this context
+    pool.destroy()
   },
 }
