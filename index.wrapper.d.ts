@@ -1,7 +1,68 @@
 /**
+ * Configuration for dynamic pool sizing
+ */
+export interface DynamicSizingConfig<T> {
+  /** Minimum pool size */
+  min: number
+  /** Maximum pool size */
+  max: number
+  /** Initial pool size (defaults to min) */
+  initial?: number
+  /** Function to create new resources */
+  resourceFactory: () => T | Promise<T>
+  /** Optional function to validate resources (return true if valid) */
+  validateResource?: (resource: T) => boolean | Promise<boolean>
+  /** Optional function to cleanup/destroy resources */
+  resourceDestroyer?: (resource: T) => void | Promise<void>
+  /** Number of pending requests before scaling up (default: 5) */
+  scaleUpThreshold?: number
+  /** Number of resources to add when scaling up (default: 1) */
+  scaleUpIncrement?: number
+  /** Time in ms before idle resources can be removed (default: 30000) */
+  idleTimeoutMs?: number
+  /** Interval in ms to check for idle resources (default: 10000) */
+  scaleDownCheckIntervalMs?: number
+  /** Whether to validate resources on acquire (default: false) */
+  validateOnAcquire?: boolean
+  /** Number of retries when creating resources fails (default: 3) */
+  createRetries?: number
+}
+
+/**
+ * Pool metrics for monitoring
+ */
+export interface PoolMetrics {
+  /** Current total size of the pool */
+  currentSize: number
+  /** Minimum size (for dynamic pools) */
+  minSize: number
+  /** Maximum size (for dynamic pools) */
+  maxSize: number
+  /** Number of available resources */
+  available: number
+  /** Number of resources currently in use */
+  inUse: number
+  /** Number of pending acquisition requests */
+  pending: number
+  /** Number of scale-up events */
+  scaleUpEvents: number
+  /** Number of scale-down events */
+  scaleDownEvents: number
+  /** Total resources created */
+  resourcesCreated: number
+  /** Total resources destroyed */
+  resourcesDestroyed: number
+}
+
+/**
  * Type-safe wrapper for a generic resource pool
  */
 export declare class GenericObjectPool<T> {
+  /**
+   * Create a pool with dynamic sizing capabilities
+   */
+  static withDynamicSizing<T>(config: DynamicSizingConfig<T>): GenericObjectPool<T>
+
   /**
    * Create a new resource pool
    * @param resources - Initial resources in the pool
@@ -64,6 +125,11 @@ export declare class GenericObjectPool<T> {
   ): Promise<R>
 
   /**
+   * Get pool metrics (for dynamic pools)
+   */
+  getMetrics(): PoolMetrics
+
+  /**
    * Get the number of available resources
    */
   readonly available: number
@@ -72,6 +138,16 @@ export declare class GenericObjectPool<T> {
    * Get the total number of resources managed by the pool
    */
   readonly size: number
+
+  /**
+   * Minimum pool size (for dynamic pools)
+   */
+  readonly minSize: number
+
+  /**
+   * Maximum pool size (for dynamic pools)
+   */
+  readonly maxSize: number
 
   /**
    * Get the number of pending acquire requests
