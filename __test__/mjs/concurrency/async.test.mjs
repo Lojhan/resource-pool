@@ -106,7 +106,7 @@ describe('GenericObjectPool - Concurrency & Async', () => {
     const pool = new GenericObjectPool([resource])
 
     try {
-      await pool.use(async (r) => {
+      await pool.use(async () => {
         throw new Error('fail')
       })
     } catch (e) {

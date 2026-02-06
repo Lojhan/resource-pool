@@ -1,4 +1,4 @@
-use crossbeam_queue::SegQueue;
+use parking_lot::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
@@ -9,7 +9,6 @@ use tokio::time::timeout;
 pub enum PoolError {
   Timeout,
   Closed,
-  Empty,
 }
 
 impl std::fmt::Display for PoolError {
@@ -17,118 +16,128 @@ impl std::fmt::Display for PoolError {
     match self {
       PoolError::Timeout => write!(f, "Timeout acquiring resource"),
       PoolError::Closed => write!(f, "Pool closed"),
-      PoolError::Empty => write!(f, "Pool empty"),
     }
   }
 }
 
 impl std::error::Error for PoolError {}
 
-/// A high-performance, lock-free pool core.
-/// It uses a Hybrid Architecture:
-/// - `SegQueue` (Lock-Free) for storing the resources (indices).
-/// - `Semaphore` (Async-Aware) for managing the wait queue and permits.
-pub struct CorePool<T> {
-  pool: Arc<SegQueue<T>>,
+/// A simple, high-performance pool.
+///
+/// It relies on `tokio::Semaphore` to handle the "Async Wait" logic
+/// and a `Mutex<Vec<u32>>` for storage.
+///
+/// The Logic:
+/// 1. The Semaphore holds the *count* of available resources.
+/// 2. The Mutex holds the *actual* resources.
+/// 3. We ONLY touch the Mutex if we have successfully acquired a permit from the Semaphore.
+///    This guarantees the Mutex never blocks for long and the Vec is never empty when we look.
+#[derive(Clone)]
+pub struct CorePool {
+  // Use a standard Mutex. It is faster than SegQueue for simple integer operations
+  // because it doesn't allocate nodes on the heap.
+  resources: Arc<Mutex<Vec<u32>>>,
   semaphore: Arc<Semaphore>,
   size: Arc<AtomicUsize>,
   pending: Arc<AtomicUsize>,
 }
 
-impl<T> Clone for CorePool<T> {
-  fn clone(&self) -> Self {
-    Self {
-      pool: self.pool.clone(),
-      semaphore: self.semaphore.clone(),
-      size: self.size.clone(),
-      pending: self.pending.clone(),
-    }
-  }
-}
-
-impl<T> CorePool<T> {
-  pub fn new(items: Vec<T>) -> Self {
+impl CorePool {
+  pub fn new(items: Vec<u32>) -> Self {
     let count = items.len();
-    let queue = SegQueue::new();
-    for item in items {
-      queue.push(item);
-    }
     Self {
-      pool: Arc::new(queue),
+      resources: Arc::new(Mutex::new(items)),
       semaphore: Arc::new(Semaphore::new(count)),
       size: Arc::new(AtomicUsize::new(count)),
       pending: Arc::new(AtomicUsize::new(0)),
     }
   }
 
-  /// Synchronously attempts to acquire a resource.
-  /// If successful, the permit is "forgotten" (leaked) to the caller
-  /// and must be restored via `release()`.
-  pub fn try_acquire(&self) -> Option<T> {
+  #[inline]
+  pub fn try_acquire(&self) -> Option<u32> {
+    // 1. Try to get a permit. If this fails, the pool is empty/closed.
     let permit = self.semaphore.try_acquire().ok()?;
+
+    // 2. We have a permit, so the Mutex MUST contain at least one item.
+    // We explicitly forget the permit because the caller now "owns" the slot.
     permit.forget();
-    self.pool.pop()
+
+    // 3. Pop the index.
+    let mut lock = self.resources.lock();
+    lock.pop()
   }
 
-  /// Asynchronously acquires a resource.
-  /// Handles the "wait queue" using Tokio's semaphore.
-  pub async fn acquire_async(&self, timeout_ms: Option<u64>) -> Result<T, PoolError> {
-    // Optimization: Fast path try_acquire before awaiting
+  pub async fn acquire_async(&self, timeout_ms: Option<u64>) -> Result<u32, PoolError> {
+    // Fast path: try to acquire without registering a waker
     if let Ok(permit) = self.semaphore.try_acquire() {
       permit.forget();
-      if let Some(item) = self.pool.pop() {
-        return Ok(item);
-      } else {
-        // Fallback (should be rare/impossible): return permit and wait properly
-        self.semaphore.add_permits(1);
-      }
+      let mut lock = self.resources.lock();
+      return Ok(
+        lock
+          .pop()
+          .expect("Pool desync: Permit acquired but queue empty"),
+      );
     }
 
     self.pending.fetch_add(1, Ordering::Relaxed);
 
     // The Async Wait
+    let acquire_future = self.semaphore.acquire();
+
     let permit_result = if let Some(ms) = timeout_ms {
-      timeout(Duration::from_millis(ms), self.semaphore.acquire()).await
+      timeout(Duration::from_millis(ms), acquire_future).await
     } else {
-      Ok(self.semaphore.acquire().await)
+      Ok(acquire_future.await)
     };
 
     self.pending.fetch_sub(1, Ordering::Relaxed);
 
-    let permit = match permit_result {
-      Ok(Ok(p)) => p,
-      Ok(Err(_)) => return Err(PoolError::Closed), // Semaphore closed
-      Err(_) => return Err(PoolError::Timeout),    // Timeout
-    };
-
-    // "Forget" the permit so it persists while the user holds the resource.
-    permit.forget();
-
-    self.pool.pop().ok_or(PoolError::Empty)
-  }
-
-  /// Returns a resource to the pool and restores the semaphore permit.
-  /// This wakes up the next waiter in the queue.
-  pub fn release(&self, item: T) {
-    self.pool.push(item);
-    self.semaphore.add_permits(1);
-  }
-
-  pub fn add(&self, item: T) {
-    self.pool.push(item);
-    self.semaphore.add_permits(1);
-    self.size.fetch_add(1, Ordering::Relaxed);
-  }
-
-  pub fn remove_one(&self) -> Option<T> {
-    // We must acquire a permit to remove an item to ensure we don't
-    // remove an item that is currently reserved for a waiter.
-    if let Ok(permit) = self.semaphore.try_acquire() {
-      permit.forget();
-      if let Some(item) = self.pool.pop() {
-        self.size.fetch_sub(1, Ordering::Relaxed);
-        return Some(item);
+    match permit_result {
+      Ok(Ok(permit)) => {
+        permit.forget();
+        let mut lock = self.resources.lock();
+        // Safe expect: Semaphore guarantees count > 0
+        Ok(
+          lock
+            .pop()
+            .expect("Pool desync: Permit acquired but queue empty"),
+        )
       }
+      Ok(Err(_)) => Err(PoolError::Closed), // Semaphore closed
+      Err(_) => Err(PoolError::Timeout),    // Timeout
+    }
+  }
+
+  pub fn release(&self, idx: u32) {
+    {
+      let mut lock = self.resources.lock();
+      lock.push(idx);
+    }
+    // Restore the permit AFTER pushing the resource to avoid race conditions
+    // where a waiter wakes up before the data is in the Vec.
+    self.semaphore.add_permits(1);
+  }
+
+  pub fn add(&self, idx: u32) {
+    {
+      let mut lock = self.resources.lock();
+      lock.push(idx);
+    }
+    self.size.fetch_add(1, Ordering::Relaxed);
+    self.semaphore.add_permits(1);
+  }
+
+  pub fn remove_one(&self) -> Option<u32> {
+    // To remove, we must consume a permit permanently
+    if let Ok(permit) = self.semaphore.try_acquire() {
+      permit.forget(); // We consume the permit
+
+      let mut lock = self.resources.lock();
+      let item = lock.pop();
+      if item.is_some() {
+        self.size.fetch_sub(1, Ordering::Relaxed);
+      }
+      return item;
     }
     None
   }
@@ -145,16 +154,13 @@ impl<T> CorePool<T> {
     self.pending.load(Ordering::Relaxed)
   }
 
-  pub fn drain(&self) -> Vec<T> {
+  pub fn close(&self) {
     self.semaphore.close();
-    let mut items = Vec::new();
-    while let Some(item) = self.pool.pop() {
-      items.push(item);
-    }
-    let dropped = items.len();
+    let mut lock = self.resources.lock();
+    let dropped = lock.len();
+    lock.clear();
     if dropped > 0 {
       self.size.fetch_sub(dropped, Ordering::Relaxed);
     }
-    items
   }
 }

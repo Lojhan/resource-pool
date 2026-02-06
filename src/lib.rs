@@ -2,26 +2,23 @@
 
 mod pool;
 
-use crate::pool::{CorePool, PoolError};
 use napi::bindgen_prelude::*;
 use napi_derive::napi;
+use pool::{CorePool, PoolError};
 
 #[napi]
 pub struct GenericObjectPool {
-  // We only manage indices (u32), not objects.
-  inner: CorePool<u32>,
+  inner: CorePool,
 }
 
 #[napi]
 impl GenericObjectPool {
   #[napi(constructor)]
   pub fn new(size: u32) -> Self {
-    // Initialize the queue with indices [0, 1, 2, ... size-1]
     let mut indices = Vec::with_capacity(size as usize);
     for i in 0..size {
       indices.push(i);
     }
-
     GenericObjectPool {
       inner: CorePool::new(indices),
     }
@@ -29,7 +26,6 @@ impl GenericObjectPool {
 
   #[napi]
   pub fn acquire(&self) -> Result<u32> {
-    // Pure integer logic. No object creation.
     match self.inner.try_acquire() {
       Some(idx) => Ok(idx),
       None => Err(Error::from_reason("No resources available")),
@@ -38,7 +34,6 @@ impl GenericObjectPool {
 
   #[napi]
   pub async fn acquire_async(&self, timeout_ms: Option<u32>) -> Result<u32> {
-    // Async wait handled by Tokio, returns an integer.
     self
       .inner
       .acquire_async(timeout_ms.map(|t| t as u64))
@@ -48,8 +43,7 @@ impl GenericObjectPool {
           "Failed to acquire resource within {:?}ms timeout",
           timeout_ms.unwrap_or(0)
         )),
-        PoolError::Empty => Error::from_reason("Pool empty"),
-        _ => Error::from_reason(e.to_string()),
+        PoolError::Closed => Error::from_reason("Pool closed"),
       })
   }
 
@@ -57,8 +51,6 @@ impl GenericObjectPool {
   pub fn release(&self, idx: u32) {
     self.inner.release(idx);
   }
-
-  // --- Management ---
 
   #[napi]
   pub fn add(&self, idx: u32) {
@@ -87,6 +79,6 @@ impl GenericObjectPool {
 
   #[napi]
   pub fn destroy(&self) {
-    self.inner.drain();
+    self.inner.close();
   }
 }

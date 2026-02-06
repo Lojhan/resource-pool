@@ -27,12 +27,12 @@ describe('GenericObjectPool - Use Method', () => {
 
   test('should handle timeout in use()', async () => {
     const pool = new GenericObjectPool([{ id: 1 }])
-    const r1 = pool.acquire() // Exhaust the pool
+    pool.acquire() // Exhaust the pool
 
     const start = Date.now()
     try {
       await pool.use(
-        async (resource) => {
+        async () => {
           assert.fail('Should not have acquired')
         },
         { timeout: 100 },

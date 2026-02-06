@@ -24,7 +24,10 @@
     "index.wrapper.mjs",
     "index.wrapper.cjs",
     "index.wrapper.d.ts",
-    "browser.js"
+    "browser.js",
+    "implementations/index.mjs",
+    "implementations/index.cjs",
+    "implementations/index.d.ts"
   ],
   "exports": {
     ".": {
@@ -35,6 +38,16 @@
       "require": {
         "types": "./index.wrapper.d.ts",
         "default": "./index.wrapper.cjs"
+      }
+    },
+    "./implementations": {
+      "import": {
+        "types": "./implementations/index.d.ts",
+        "default": "./implementations/index.mjs"
+      },
+      "require": {
+        "types": "./implementations/index.d.ts",
+        "default": "./implementations/index.cjs"
       }
     }
   },

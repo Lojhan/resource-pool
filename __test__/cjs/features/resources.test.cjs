@@ -41,7 +41,7 @@ describe('GenericObjectPool - Resources', () => {
     const pool = new GenericObjectPool(resources)
 
     const r1 = pool.acquire()
-    const _ = pool.acquire()
+    pool.acquire()
     assert.strictEqual(pool.availableCount(), 0)
 
     const removed = pool.removeOne()

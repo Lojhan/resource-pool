@@ -7,8 +7,8 @@
  */
 
 const { strict: assert } = require('node:assert')
-const { test } = require('node:test')
 const process = require('node:process')
+const { test } = require('node:test')
 const { setTimeout } = require('node:timers/promises')
 
 const { GenericObjectPool } = require('../../index.wrapper.cjs')

@@ -17,7 +17,7 @@ describe('GenericObjectPool - Lifecycle & Observability', () => {
     assert.strictEqual(pool.numUsed, 1)
     assert.strictEqual(pool.pendingCount, 0)
 
-    const r2 = await pool.acquireAsync()
+    await pool.acquireAsync()
     assert.strictEqual(pool.available, 0)
     assert.strictEqual(pool.numUsed, 2)
 
