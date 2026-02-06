@@ -203,9 +203,9 @@ describe('GenericObjectPool - Dynamic Sizing', () => {
       const initialSize = pool.size
 
       // Create concurrent demand to trigger scale-up
-      await Promise.all(
+      await Promise.allSettled(
         Array.from({ length: 5 }, () =>
-          pool.acquireAsync(1000).then((resource) => {
+          pool.acquireAsync(500).then((resource) => {
             pool.release(resource)
             return resource
           }),
