@@ -1,5 +1,5 @@
 import { strict as assert } from 'node:assert'
-import { describe, test, before, after } from 'node:test'
+import { describe, test } from 'node:test'
 import { GenericObjectPool } from '../../../index.wrapper.mjs'
 
 describe('GenericObjectPool - Dynamic Sizing', () => {
@@ -133,7 +133,10 @@ describe('GenericObjectPool - Dynamic Sizing', () => {
       const resources = await Promise.all(promises)
       assert.strictEqual(resources.length, 3)
 
-      resources.forEach((r) => pool.release(r))
+      for (const r of resources) {
+        pool.release(r)
+      }
+
       pool.destroy()
     })
 
@@ -193,7 +196,7 @@ describe('GenericObjectPool - Dynamic Sizing', () => {
       const initialSize = pool.size
 
       // Create concurrent demand to trigger scale-up
-      const resources = await Promise.all(
+      await Promise.all(
         Array.from({ length: 5 }, () =>
           pool.acquireAsync(500).then((resource) => {
             pool.release(resource)
@@ -477,7 +480,10 @@ describe('GenericObjectPool - Dynamic Sizing', () => {
       pool.release(r1)
       pool.release(r2)
       const resources = await Promise.all(promises)
-      resources.forEach((r) => pool.release(r))
+      for (const r of resources) {
+        pool.release(r)
+      }
+
       pool.destroy()
     })
 
@@ -514,16 +520,16 @@ describe('GenericObjectPool - Dynamic Sizing', () => {
       })
 
       const metrics = pool.getMetrics()
-      assert.ok(metrics.hasOwnProperty('currentSize'))
-      assert.ok(metrics.hasOwnProperty('minSize'))
-      assert.ok(metrics.hasOwnProperty('maxSize'))
-      assert.ok(metrics.hasOwnProperty('available'))
-      assert.ok(metrics.hasOwnProperty('inUse'))
-      assert.ok(metrics.hasOwnProperty('pending'))
-      assert.ok(metrics.hasOwnProperty('scaleUpEvents'))
-      assert.ok(metrics.hasOwnProperty('scaleDownEvents'))
-      assert.ok(metrics.hasOwnProperty('resourcesCreated'))
-      assert.ok(metrics.hasOwnProperty('resourcesDestroyed'))
+      assert.ok('currentSize' in metrics)
+      assert.ok('minSize' in metrics)
+      assert.ok('maxSize' in metrics)
+      assert.ok('available' in metrics)
+      assert.ok('inUse' in metrics)
+      assert.ok('pending' in metrics)
+      assert.ok('scaleUpEvents' in metrics)
+      assert.ok('scaleDownEvents' in metrics)
+      assert.ok('resourcesCreated' in metrics)
+      assert.ok('resourcesDestroyed' in metrics)
 
       pool.destroy()
     })
@@ -556,7 +562,9 @@ describe('GenericObjectPool - Dynamic Sizing', () => {
       assert.ok(sizeAfterBurst1 > 2, 'Should scale up during burst')
 
       // Release all
-      resources1.forEach((r) => pool.release(r))
+      for (const r of resources1) {
+        pool.release(r)
+      }
 
       // Idle period
       await new Promise((resolve) => setTimeout(resolve, 300))
@@ -573,13 +581,16 @@ describe('GenericObjectPool - Dynamic Sizing', () => {
 
       assert.ok(pool.size >= 8, 'Should scale up again for second burst')
 
-      resources2.forEach((r) => pool.release(r))
+      for (const r of resources2) {
+        pool.release(r)
+      }
+
       pool.destroy()
     })
 
     test('should handle resource destruction callbacks', async () => {
       let counter = 0
-      let destroyedIds = []
+      const destroyedIds = []
 
       const factory = () => ({ id: counter++ })
       const destroyer = (resource) => {
@@ -620,7 +631,6 @@ describe('GenericObjectPool - Dynamic Sizing', () => {
         scaleUpIncrement: 2,
       })
 
-      const results = []
       const promises = []
 
       for (let i = 0; i < 5; i++) {

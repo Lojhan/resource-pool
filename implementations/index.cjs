@@ -7,7 +7,9 @@ class StaticObjectPool {
     this.resources = [...resources]
 
     this.resourceToIdx = new Map()
-    this.resources.forEach((r, i) => this.resourceToIdx.set(r, i))
+    for (const [i, r] of this.resources.entries()) {
+      this.resourceToIdx.set(r, i)
+    }
 
     this.pool = new NativePool(resources.length)
   }
@@ -296,9 +298,7 @@ class DynamicObjectPool extends StaticObjectPool {
     }
 
     if (pool.pool.size() < initialTarget) {
-      pool.#fillToTarget(initialTarget).catch((err) =>
-        console.error('Failed to fill initial resources:', err),
-      )
+      pool.#fillToTarget(initialTarget).catch((err) => console.error('Failed to fill initial resources:', err))
     }
 
     return pool
@@ -513,8 +513,7 @@ class DynamicObjectPool extends StaticObjectPool {
     this.#lastActivityAt = Date.now()
 
     if (this.#resourceDestroyer) {
-      Promise.resolve(this.#resourceDestroyer(resource))
-        .catch((err) => console.error('Resource destroyer error:', err))
+      Promise.resolve(this.#resourceDestroyer(resource)).catch((err) => console.error('Resource destroyer error:', err))
     }
 
     this.#metrics.resourcesDestroyed++
@@ -534,8 +533,9 @@ class DynamicObjectPool extends StaticObjectPool {
     if (this.#resourceDestroyer) {
       for (const resource of this.resources) {
         if (resource !== null) {
-          Promise.resolve(this.#resourceDestroyer(resource))
-            .catch((err) => console.error('Resource destroyer error:', err))
+          Promise.resolve(this.#resourceDestroyer(resource)).catch((err) =>
+            console.error('Resource destroyer error:', err),
+          )
         }
       }
     }
