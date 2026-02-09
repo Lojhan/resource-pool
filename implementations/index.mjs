@@ -1,6 +1,190 @@
-import nativeModule from '../index.js'
+import { createRequire } from 'node:module'
 
-const NativePool = nativeModule.GenericObjectPool
+const require = createRequire(import.meta.url)
+const { FastResourcePool } = require('../fast-pool.cjs')
+
+const OFFSET_SLOTS_START = 5
+
+class FastPoolAdapter {
+  constructor(size) {
+    if (size === 0) {
+      this._pool = new FastResourcePool(1)
+      this._capacity = 1
+    } else {
+      this._pool = new FastResourcePool(size)
+      this._capacity = size
+    }
+    this._removed = new Set()
+    this._inUse = new Set()
+    this._pending = 0
+    this._closed = false
+    this._waiters = []
+
+    if (size === 0) {
+      this._pool.lockSlot(0)
+      this._removed.add(0)
+    }
+  }
+
+  _ensureOpen() {
+    if (this._closed) {
+      throw new Error('Pool closed')
+    }
+  }
+
+  _rebuildPool(newCapacity) {
+    const oldPool = this._pool
+    const oldCapacity = this._capacity
+    const nextPool = new FastResourcePool(newCapacity)
+    const copyCount = Math.min(oldCapacity, newCapacity)
+
+    for (let i = 0; i < copyCount; i++) {
+      const state = Atomics.load(oldPool.state, OFFSET_SLOTS_START + i)
+      Atomics.store(nextPool.state, OFFSET_SLOTS_START + i, state)
+    }
+
+    this._pool = nextPool
+    this._capacity = newCapacity
+  }
+
+  acquire() {
+    this._ensureOpen()
+    const idx = this._pool.acquire()
+    if (idx === -1) {
+      throw new Error('No resources available')
+    }
+    this._inUse.add(idx)
+    return idx
+  }
+
+  async acquireAsync(timeoutMs) {
+    this._ensureOpen()
+
+    const immediate = this._pool.acquire()
+    if (immediate !== -1) {
+      this._inUse.add(immediate)
+      return immediate
+    }
+
+    this._pending += 1
+
+    return new Promise((resolve, reject) => {
+      let timeoutId = null
+      const waiter = { resolve, reject, timeoutId }
+
+      if (timeoutMs !== undefined) {
+        timeoutId = setTimeout(() => {
+          this._removeWaiter(waiter)
+          this._pending -= 1
+          reject(new Error(`Failed to acquire resource within ${timeoutMs}ms timeout`))
+        }, timeoutMs)
+        waiter.timeoutId = timeoutId
+      }
+
+      this._waiters.push(waiter)
+    })
+  }
+
+  release(idx) {
+    this._ensureOpen()
+    this._inUse.delete(idx)
+    this._pool.release(idx)
+    this._drainWaiters()
+  }
+
+  add(preferredIdx) {
+    this._ensureOpen()
+    if (this._removed.size > 0) {
+      const reuseIdx = this._removed.values().next().value
+      this._removed.delete(reuseIdx)
+      this._pool.unlockSlot(reuseIdx)
+      this._drainWaiters()
+      return reuseIdx
+    }
+
+    if (preferredIdx === undefined || preferredIdx === this._capacity) {
+      this._rebuildPool(this._capacity + 1)
+      this._drainWaiters()
+      return this._capacity - 1
+    }
+
+    if (this._removed.has(preferredIdx)) {
+      this._removed.delete(preferredIdx)
+      this._pool.unlockSlot(preferredIdx)
+      this._drainWaiters()
+      return preferredIdx
+    }
+
+    throw new Error(`Index ${preferredIdx} already exists`)
+  }
+
+  removeOne() {
+    this._ensureOpen()
+    for (let i = this._capacity - 1; i >= 0; i--) {
+      if (this._removed.has(i)) continue
+      if (this._pool.isSlotFree(i) && this._pool.lockSlot(i)) {
+        this._removed.add(i)
+        return i
+      }
+    }
+
+    return null
+  }
+
+  availableCount() {
+    this._ensureOpen()
+    return this._pool.availableCount()
+  }
+
+  size() {
+    this._ensureOpen()
+    return this._capacity - this._removed.size
+  }
+
+  pendingCount() {
+    return this._pending
+  }
+
+  _removeWaiter(waiter) {
+    const idx = this._waiters.indexOf(waiter)
+    if (idx !== -1) {
+      this._waiters.splice(idx, 1)
+    }
+  }
+
+  _drainWaiters() {
+    if (this._closed || this._waiters.length === 0) return
+
+    while (this._waiters.length > 0) {
+      const idx = this._pool.acquire()
+      if (idx === -1) return
+
+      const waiter = this._waiters.shift()
+      if (waiter.timeoutId) {
+        clearTimeout(waiter.timeoutId)
+      }
+
+      this._pending -= 1
+      this._inUse.add(idx)
+      waiter.resolve(idx)
+    }
+  }
+
+  destroy() {
+    this._closed = true
+    const waiters = this._waiters.splice(0)
+    for (const waiter of waiters) {
+      if (waiter.timeoutId) {
+        clearTimeout(waiter.timeoutId)
+      }
+      waiter.reject(new Error('Pool closed'))
+    }
+
+    this._pool = null
+    this._removed.clear()
+    this._inUse.clear()
+  }
+}
 
 /**
  * Static-size pool implementation
@@ -19,7 +203,7 @@ export class StaticObjectPool {
       this.resourceToIdx.set(r, i)
     }
 
-    this.pool = new NativePool(resources.length)
+    this.pool = new FastPoolAdapter(resources.length)
   }
 
   acquire() {
@@ -43,10 +227,13 @@ export class StaticObjectPool {
   }
 
   add(resource) {
-    const newIdx = this.resources.length
-    this.resources.push(resource)
-    this.resourceToIdx.set(resource, newIdx)
-    this.pool.add(newIdx)
+    const idx = this.pool.add(this.resources.length)
+    if (idx === this.resources.length) {
+      this.resources.push(resource)
+    } else {
+      this.resources[idx] = resource
+    }
+    this.resourceToIdx.set(resource, idx)
   }
 
   removeOne() {
@@ -136,7 +323,7 @@ export class EnginePool {
    * @param {number} size
    */
   constructor(size) {
-    this.pool = new NativePool(size)
+    this.pool = new FastPoolAdapter(size)
   }
 
   acquire() {
@@ -245,6 +432,7 @@ export class DynamicObjectPool extends StaticObjectPool {
   #pendingAsync = 0
   #scaleUpFailureCount = 0
   #scaleUpCooldownUntil = 0
+  #pendingScaleUpPromises = new Set()
 
   #metrics = {
     scaleUpEvents: 0,
@@ -317,7 +505,7 @@ export class DynamicObjectPool extends StaticObjectPool {
     }
 
     if (pool.pool.size() < initialTarget) {
-      pool.#fillToTarget(initialTarget).catch((err) => console.error('Failed to fill initial resources:', err))
+      pool.#fillToTarget(initialTarget).catch(() => {})
     }
 
     return pool
@@ -361,7 +549,9 @@ export class DynamicObjectPool extends StaticObjectPool {
 
   #maybeScaleUp() {
     if (this.#shouldScaleUp()) {
-      this.#scaleUp().catch((err) => console.error('Scale up error:', err))
+      const promise = this.#scaleUp()
+      this.#pendingScaleUpPromises.add(promise)
+      promise.finally(() => this.#pendingScaleUpPromises.delete(promise))
       return
     }
 
@@ -370,7 +560,9 @@ export class DynamicObjectPool extends StaticObjectPool {
     this.#scaleUpCheckTimer = setTimeout(() => {
       this.#scaleUpCheckTimer = null
       if (this.#shouldScaleUp()) {
-        this.#scaleUp().catch((err) => console.error('Scale up error:', err))
+        const promise = this.#scaleUp()
+        this.#pendingScaleUpPromises.add(promise)
+        promise.finally(() => this.#pendingScaleUpPromises.delete(promise))
       }
     }, 0)
 
@@ -486,7 +678,6 @@ export class DynamicObjectPool extends StaticObjectPool {
       if (this.#validateOnAcquire) {
         const isValid = await this.#validateResourceIfNeeded(resource)
         if (!isValid) {
-          this.pool.release(idx)
           try {
             const newResource = await this.#createResourceWithRetry()
             this.resources[idx] = newResource
@@ -532,7 +723,11 @@ export class DynamicObjectPool extends StaticObjectPool {
     this.#lastActivityAt = Date.now()
 
     if (this.#resourceDestroyer) {
-      Promise.resolve(this.#resourceDestroyer(resource)).catch((err) => console.error('Resource destroyer error:', err))
+      try {
+        this.#resourceDestroyer(resource)
+      } catch (_err) {
+        // Ignore destroyer errors in cleanup
+      }
     }
 
     this.#metrics.resourcesDestroyed++
@@ -552,9 +747,11 @@ export class DynamicObjectPool extends StaticObjectPool {
     if (this.#resourceDestroyer) {
       for (const resource of this.resources) {
         if (resource !== null) {
-          Promise.resolve(this.#resourceDestroyer(resource)).catch((err) =>
-            console.error('Resource destroyer error:', err),
-          )
+          try {
+            this.#resourceDestroyer(resource)
+          } catch (_err) {
+            // Ignore destroyer errors in cleanup
+          }
         }
       }
     }
@@ -562,6 +759,9 @@ export class DynamicObjectPool extends StaticObjectPool {
     super.destroy()
 
     this.#lastActivityAt = 0
+    
+    // Clear pending scale-up promises without waiting
+    this.#pendingScaleUpPromises.clear()
   }
 
   getMetrics() {

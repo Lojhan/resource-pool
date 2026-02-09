@@ -1,10 +1,14 @@
 #![deny(clippy::all)]
 
 mod pool;
+mod fast_pool;
 
 use napi::bindgen_prelude::*;
 use napi_derive::napi;
 use pool::{CorePool, PoolError};
+
+// Re-export FastPool for N-API bindings
+pub use fast_pool::FastPool;
 
 #[napi]
 pub struct GenericObjectPool {

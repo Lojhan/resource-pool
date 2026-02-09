@@ -1,11 +1,11 @@
-import { GenericObjectPool } from '@lojhan/resource-pool'
+import { StaticObjectPool } from '../../implementations/index.mjs'
 
 export default {
-  name: 'GenericObjectPool (Static) .use()',
+  name: 'StaticObjectPool (Static) .use()',
 
   setup: async (poolSize) => {
     const resources = Array.from({ length: poolSize }, (_, i) => ({ id: i }))
-    return new GenericObjectPool(resources)
+    return new StaticObjectPool(resources)
   },
 
   run: async (pool, iterations) => {

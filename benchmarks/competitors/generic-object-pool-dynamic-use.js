@@ -1,10 +1,10 @@
-import { GenericObjectPool } from '@lojhan/resource-pool'
+import { DynamicObjectPool } from '../../implementations/index.mjs'
 
 export default {
-  name: 'GenericObjectPool (Dynamic) .use()',
+  name: 'DynamicObjectPool (Dynamic) .use()',
 
   setup: async (poolSize) => {
-    return GenericObjectPool.dynamic({
+    return DynamicObjectPool.withDynamicSizing({
       min: poolSize,
       max: poolSize,
       initial: poolSize,

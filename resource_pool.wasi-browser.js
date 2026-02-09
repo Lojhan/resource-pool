@@ -53,4 +53,5 @@ const {
   },
 })
 export default __napiModule.exports
+export const FastPool = __napiModule.exports.FastPool
 export const GenericObjectPool = __napiModule.exports.GenericObjectPool

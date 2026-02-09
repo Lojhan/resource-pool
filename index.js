@@ -576,4 +576,5 @@ if (!nativeBinding) {
 }
 
 module.exports = nativeBinding
+module.exports.FastPool = nativeBinding.FastPool
 module.exports.GenericObjectPool = nativeBinding.GenericObjectPool

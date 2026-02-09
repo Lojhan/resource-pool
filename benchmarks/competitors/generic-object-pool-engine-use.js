@@ -1,10 +1,10 @@
-import { GenericObjectPool } from '@lojhan/resource-pool'
+import { EnginePool } from '../../implementations/index.mjs'
 
 export default {
-  name: 'GenericObjectPool (Engine) .use()',
+  name: 'EnginePool (Engine) .use()',
 
   setup: async (poolSize) => {
-    return GenericObjectPool.engine(poolSize)
+    return new EnginePool(poolSize)
   },
 
   run: async (pool, iterations) => {
