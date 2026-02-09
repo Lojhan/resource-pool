@@ -1,25 +1,24 @@
-import { DynamicObjectPool } from '../../implementations/index.mjs'
+import { createPool } from '../../src/index'
 
 export default {
-  name: 'DynamicObjectPool (Dynamic/Sync)',
+  name: 'ObjectPool (Dynamic/Sync)',
 
   setup: async (poolSize) => {
-    return DynamicObjectPool.withDynamicSizing({
+    return await createPool({
       min: poolSize,
       max: poolSize,
-      initial: poolSize,
-      resourceFactory: () => ({}),
+      resourceFactory: () => ({ id: Math.random() }),
     })
   },
 
   run: async (pool, iterations) => {
     for (let i = 0; i < iterations; i++) {
       const r = pool.acquire()
-      pool.release(r)
+      if (r) pool.release(r)
     }
   },
 
   teardown: async (pool) => {
-    pool.destroy()
+    await pool.destroy()
   },
 }

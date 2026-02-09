@@ -1,11 +1,14 @@
-import { StaticObjectPool } from '../../implementations/index.mjs'
+import { createPool } from '../../src/index'
 
 export default {
-  name: 'StaticObjectPool (Static) .use()',
+  name: 'ObjectPool (Static) .use()',
 
   setup: async (poolSize) => {
-    const resources = Array.from({ length: poolSize }, (_, i) => ({ id: i }))
-    return new StaticObjectPool(resources)
+    return await createPool({
+      min: poolSize,
+      max: poolSize,
+      resourceFactory: () => ({ id: Math.random() }),
+    })
   },
 
   run: async (pool, iterations) => {
@@ -18,6 +21,6 @@ export default {
   },
 
   teardown: async (pool) => {
-    pool.destroy()
+    await pool.destroy()
   },
 }
