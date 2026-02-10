@@ -3,7 +3,7 @@ import { Pool } from 'tarn';
 export default {
   name: 'tarn (Pure JS/Async)',
 
-  setup: async (poolSize) => {
+  setup: (poolSize) => {
     return new Pool({
       create: () => ({ id: Math.random() }),
       destroy: () => {},

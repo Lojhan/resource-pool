@@ -1,9 +1,9 @@
-import { createEnginePool } from '../../dist/src/index.js';
+import { createEnginePool } from '@lojhan/resource-pool';
 
 export default {
   name: 'EnginePool (Index)',
 
-  setup: async (poolSize) => {
+  setup: (poolSize) => {
     return createEnginePool(poolSize);
   },
 

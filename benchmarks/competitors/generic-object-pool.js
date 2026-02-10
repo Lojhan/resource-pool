@@ -1,10 +1,10 @@
-import { createPool } from '../../dist/src/index.js';
+import { createPool } from '@lojhan/resource-pool';
 
 export default {
   name: 'ObjectPool (Static)',
 
-  setup: async (poolSize) => {
-    return await createPool({
+  setup: (poolSize) => {
+    return createPool({
       min: poolSize,
       max: poolSize,
       resourceFactory: () => ({ id: Math.random() }),

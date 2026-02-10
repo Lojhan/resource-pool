@@ -14,7 +14,7 @@ export default {
   },
 
   run: async (pool, iterations) => {
-    const task = () => {};
+    const task = () => Promise.resolve();
 
     for (let i = 0; i < iterations; i++) {
       const acquire = pool.acquire();

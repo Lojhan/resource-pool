@@ -4,7 +4,7 @@
 [![npm version](https://img.shields.io/npm/v/@lojhan/resource-pool.svg)](https://www.npmjs.com/package/@lojhan/resource-pool)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A high-performance, zero-dependency resource pooling library for Node.js and TypeScript. Achieve **10M+ operations/sec** with intelligent auto-scaling, resource validation, and built-in timeout protection.
+A high-performance, zero-dependency resource pooling library for Node.js and TypeScript. Achieve **40M+ operations/sec** with intelligent auto-scaling, resource validation, and built-in timeout protection.
 
 Perfect for managing database connections, worker threads, HTTP clients, or any reusable resource with automatic lifecycle management and production-ready reliability.
 
@@ -26,7 +26,7 @@ Perfect for managing database connections, worker threads, HTTP clients, or any 
 
 ## Features
 
-- ⚡ **Blazing Fast**: 10M+ ops/sec with zero-allocation hot paths
+- ⚡ **Blazing Fast**: 40M+ ops/sec with zero-allocation hot paths
 - 🎯 **Two Pool Types**: Auto-scaling ObjectPool & lightweight EnginePool (index-based)
 - 🔄 **Flexible Acquisition**: Sync (`acquire()`), async (`acquireAsync()`), or automatic (`use()`)
 - 🛡️ **Production Ready**: Resource validation, timeout protection, automatic cleanup
@@ -148,7 +148,7 @@ try {
 
 **Best for:**
 
-- Maximum throughput (12M+ ops/sec)
+- Maximum throughput (39M+ ops/sec)
 - Pre-indexed resource arrays
 - Load shedding patterns
 - Custom resource routing
@@ -697,16 +697,21 @@ if (conn) {
 
 Performance on modern hardware (Apple M1 Pro):
 
-| Operation       |  ObjectPool |  EnginePool | vs generic-pool |
-| :-------------- | ----------: | ----------: | :-------------- |
-| acquire/release | 10.2M ops/s | 12.1M ops/s | **7-8x faster** |
-| use() pattern   |  3.2M ops/s |  5.7M ops/s | **2-4x faster** |
+| Library                         | acquire/release | .use() pattern | vs generic-pool |
+| :------------------------------ | --------------: | -------------: | :-------------- |
+| **ObjectPool (Dynamic)**        |   48.1M ops/sec |  11.7M ops/sec | **25x faster**  |
+| **ObjectPool (Static)**         |   41.6M ops/sec |  12.7M ops/sec | **22x faster**  |
+| **EnginePool**                  |   39.2M ops/sec |  13.1M ops/sec | **21x faster**  |
+| generic-pool                    |    1.9M ops/sec |   1.7M ops/sec | baseline        |
+| tarn                            |    0.9M ops/sec |   0.9M ops/sec | 0.5x            |
 
-Comparison against popular libraries:
+**Dynamic vs Static**: Dynamic pools (min < max) allow auto-scaling, while static pools (min === max) have fixed size.
 
-- **generic-pool**: ~1.5M ops/sec
-- **tarn**: ~1.0M ops/sec
-- **@lojhan/resource-pool**: 10-12M ops/sec
+Comparison summary:
+
+- **generic-pool**: ~1.9M ops/sec
+- **tarn**: ~0.9M ops/sec
+- **@lojhan/resource-pool**: 40-48M ops/sec
 
 Run benchmarks locally:
 
