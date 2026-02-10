@@ -1,9 +1,11 @@
 import { BasePool } from './internal/base-pool';
 import { StaticObjectPool } from './static-object-pool';
 import { DynamicObjectPool } from './dynamic-object-pool';
+import { EnginePool } from './engine-object-pool';
 import { SLOT_SYMBOL } from './internal/interfaces';
 import type { IObjectPool, PoolConfig } from './internal/interfaces';
 export type { IObjectPool, PoolConfig, PoolMetrics } from './internal/interfaces';
+export { EnginePool };
 
 export async function createPool<T extends object>(config: PoolConfig<T>): Promise<IObjectPool<T>> {
   if (config.max < config.min) throw new Error('Max must be >= Min');
@@ -57,4 +59,13 @@ export async function createPool<T extends object>(config: PoolConfig<T>): Promi
   } else {
     return new DynamicObjectPool(basePool, resources, config, destroyedIndices);
   }
+}
+
+/**
+ * Create an EnginePool for index-based resource management
+ * @param size - The number of slots in the pool
+ * @returns A new EnginePool instance
+ */
+export function createEnginePool(size: number): EnginePool {
+  return new EnginePool(size);
 }

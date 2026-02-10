@@ -37,7 +37,7 @@
     "test:basic": "tsx --test test/basic/*.test.ts",
     "test:concurrency": "tsx --test test/concurrency/*.test.ts",
     "test:features": "tsx --test test/features/*.test.ts",
-    "test:memory": "tsx --test --expose-gc test/memory-leak-check.test.ts"
+    "test:performance": "tsx --test --expose-gc test/performance/*.test.ts"
   },
   "devDependencies": {
     "@types/node": "^25.2.2",
