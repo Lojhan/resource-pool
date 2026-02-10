@@ -1,4 +1,4 @@
-import { createPool } from '../../dist/src/index.js'
+import { createPool } from '../../dist/src/index.js';
 
 export default {
   name: 'ObjectPool (Static) .use()',
@@ -8,18 +8,18 @@ export default {
       min: poolSize,
       max: poolSize,
       resourceFactory: () => ({ id: Math.random() }),
-    })
+    });
   },
 
   run: async (pool, iterations) => {
-    const task = () => {}
+    const task = () => {};
 
     for (let i = 0; i < iterations; i++) {
-      await pool.use(task)
+      await pool.use(task);
     }
   },
 
   teardown: async (pool) => {
-    await pool.destroy()
+    await pool.destroy();
   },
-}
+};

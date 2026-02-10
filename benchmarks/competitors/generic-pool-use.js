@@ -1,4 +1,4 @@
-import genericPool from 'generic-pool'
+import genericPool from 'generic-pool';
 
 export default {
   name: 'generic-pool .use()',
@@ -8,7 +8,7 @@ export default {
       create: () => Promise.resolve({ id: Math.random() }),
       destroy: () => Promise.resolve(),
       validate: () => Promise.resolve(true),
-    }
+    };
 
     const opts = {
       max: poolSize,
@@ -17,23 +17,23 @@ export default {
       idleTimeoutMillis: 30000,
       testOnBorrow: false,
       autostart: true,
-    }
+    };
 
-    const pool = genericPool.createPool(factory, opts)
-    await pool.ready()
-    return pool
+    const pool = genericPool.createPool(factory, opts);
+    await pool.ready();
+    return pool;
   },
 
   run: async (pool, iterations) => {
-    const task = () => Promise.resolve()
+    const task = () => Promise.resolve();
 
     for (let i = 0; i < iterations; i++) {
-      await pool.use(task)
+      await pool.use(task);
     }
   },
 
   teardown: async (pool) => {
-    await pool.drain()
-    await pool.clear()
+    await pool.drain();
+    await pool.clear();
   },
-}
+};

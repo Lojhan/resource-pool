@@ -60,19 +60,13 @@
   },
   "devDependencies": {
     "@types/node": "^25.2.2",
-    "lint-staged": "^16.1.6",
     "prettier": "^3.6.2",
     "tsx": "^4.21.0",
     "typescript": "^5.9.2"
   },
-  "lint-staged": {
-    "*.@(js|ts|tsx|yml|yaml|md|json)": [
-      "prettier --write"
-    ]
-  },
   "prettier": {
     "printWidth": 120,
-    "semi": false,
+    "semi": true,
     "trailingComma": "all",
     "singleQuote": true,
     "arrowParens": "always"

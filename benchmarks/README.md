@@ -25,7 +25,7 @@ export default {
    */
   setup: async (poolSize) => {
     // Return your initialized pool instance here
-    return new MyPool({ max: poolSize })
+    return new MyPool({ max: poolSize });
   },
 
   /**
@@ -36,8 +36,8 @@ export default {
   run: async (pool, iterations) => {
     for (let i = 0; i < iterations; i++) {
       // Perform one acquire + release cycle
-      const resource = await pool.acquire()
-      pool.release(resource)
+      const resource = await pool.acquire();
+      pool.release(resource);
     }
   },
 
@@ -47,9 +47,9 @@ export default {
    */
   teardown: async (pool) => {
     // Close connections, stop intervals, etc.
-    await pool.destroy()
+    await pool.destroy();
   },
-}
+};
 ```
 
 The runner will automatically detect the new file and include it in the next run.
