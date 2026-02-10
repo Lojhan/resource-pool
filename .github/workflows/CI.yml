@@ -31,10 +31,8 @@ jobs:
           cache: yarn
       - name: Install dependencies
         run: yarn install
-      - name: Oxlint
-        run: yarn lint
       - name: Prettier format check
-        run: yarn prettier --check .
+        run: yarn lint
   test:
     name: Test on Node ${{ matrix.node }} - ${{ matrix.os }}
     strategy:

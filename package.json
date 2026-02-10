@@ -2,8 +2,8 @@
   "name": "@lojhan/resource-pool",
   "version": "2.0.0",
   "description": "A generic resource pool implementation for Node.js written in TypeScript.",
-  "main": "index.wrapper.cjs",
-  "types": "index.wrapper.d.ts",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
   "repository": {
     "type": "git",
     "url": "https://github.com/Lojhan/resource-pool.git"
@@ -14,35 +14,14 @@
     "pool"
   ],
   "files": [
-    "index.d.ts",
-    "index.js",
-    "index.wrapper.mjs",
-    "index.wrapper.cjs",
-    "index.wrapper.d.ts",
-    "implementations/index.mjs",
-    "implementations/index.cjs",
-    "implementations/index.d.ts"
+    "dist/src/**/*.js",
+    "dist/src/**/*.d.ts",
+    "dist/src/**/*.d.ts.map"
   ],
   "exports": {
     ".": {
-      "import": {
-        "types": "./index.wrapper.d.ts",
-        "default": "./index.wrapper.mjs"
-      },
-      "require": {
-        "types": "./index.wrapper.d.ts",
-        "default": "./index.wrapper.cjs"
-      }
-    },
-    "./implementations": {
-      "import": {
-        "types": "./implementations/index.d.ts",
-        "default": "./implementations/index.mjs"
-      },
-      "require": {
-        "types": "./implementations/index.d.ts",
-        "default": "./implementations/index.cjs"
-      }
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
     }
   },
   "publishConfig": {
@@ -50,6 +29,8 @@
     "access": "public"
   },
   "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build",
     "format": "prettier . -w",
     "lint": "prettier . --check",
     "test": "tsx --test --expose-gc test/**/*.test.ts",
