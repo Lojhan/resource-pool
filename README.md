@@ -697,13 +697,13 @@ if (conn) {
 
 Performance on modern hardware (Apple M1 Pro):
 
-| Library                         | acquire/release | .use() pattern | vs generic-pool |
-| :------------------------------ | --------------: | -------------: | :-------------- |
-| **ObjectPool (Dynamic)**        |   48.1M ops/sec |  11.7M ops/sec | **25x faster**  |
-| **ObjectPool (Static)**         |   41.6M ops/sec |  12.7M ops/sec | **22x faster**  |
-| **EnginePool**                  |   39.2M ops/sec |  13.1M ops/sec | **21x faster**  |
-| generic-pool                    |    1.9M ops/sec |   1.7M ops/sec | baseline        |
-| tarn                            |    0.9M ops/sec |   0.9M ops/sec | 0.5x            |
+| Library                  | acquire/release | .use() pattern | vs generic-pool |
+| :----------------------- | --------------: | -------------: | :-------------- |
+| **ObjectPool (Dynamic)** |   48.1M ops/sec |  11.7M ops/sec | **25x faster**  |
+| **ObjectPool (Static)**  |   41.6M ops/sec |  12.7M ops/sec | **22x faster**  |
+| **EnginePool**           |   39.2M ops/sec |  13.1M ops/sec | **21x faster**  |
+| generic-pool             |    1.9M ops/sec |   1.7M ops/sec | baseline        |
+| tarn                     |    0.9M ops/sec |   0.9M ops/sec | 0.5x            |
 
 **Dynamic vs Static**: Dynamic pools (min < max) allow auto-scaling, while static pools (min === max) have fixed size.
 
