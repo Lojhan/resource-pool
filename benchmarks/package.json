@@ -4,9 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "benchmark": "npx tsx runner.js",
-    "bench": "npx tsx runner.js",
-    "slab": "npx tsx slab-benchmark.js"
+    "benchmark": "node runner.js",
+    "bench": "node runner.js",
+    "slab": "node slab-benchmark.js"
   },
   "dependencies": {
     "generic-pool": "^3.9.0",

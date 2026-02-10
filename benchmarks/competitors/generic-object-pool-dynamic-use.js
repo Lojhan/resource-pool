@@ -1,7 +1,7 @@
-import { createPool } from '../../src/index'
+import { createPool } from '../../dist/src/index.js'
 
 export default {
-  name: 'DynamicObjectPool (Dynamic) .use()',
+  name: 'ObjectPool (Dynamic) .use()',
 
   setup: async (poolSize) => {
     return await createPool({
@@ -12,7 +12,8 @@ export default {
   },
 
   run: async (pool, iterations) => {
-    const task = () => Promise.resolve()
+    const task = () => {}
+
     for (let i = 0; i < iterations; i++) {
       await pool.use(task)
     }

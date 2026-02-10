@@ -17,5 +17,5 @@
     "types": ["node"]
   },
   "include": ["src/**/*", "test/**/*"],
-  "exclude": ["node_modules", "dist", "target", "benchmarks", "__test__"]
+  "exclude": ["node_modules", "dist", "benchmarks", "__test__"]
 }

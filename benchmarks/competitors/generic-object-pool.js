@@ -1,7 +1,7 @@
-import { createPool } from '../../src/index'
+import { createPool } from '../../dist/src/index.js'
 
 export default {
-  name: 'ObjectPool (Static/Sync)',
+  name: 'ObjectPool (Static)',
 
   setup: async (poolSize) => {
     return await createPool({

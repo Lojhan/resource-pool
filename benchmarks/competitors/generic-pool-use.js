@@ -25,7 +25,7 @@ export default {
   },
 
   run: async (pool, iterations) => {
-    const task = (r) => Promise.resolve()
+    const task = () => Promise.resolve()
 
     for (let i = 0; i < iterations; i++) {
       await pool.use(task)

@@ -1,4 +1,4 @@
-import { createPool } from '../../src/index'
+import { createPool } from '../../dist/src/index.js'
 
 export default {
   name: 'ObjectPool (Static) .use()',
@@ -12,8 +12,7 @@ export default {
   },
 
   run: async (pool, iterations) => {
-    // We do a minimal async op to simulate real usage
-    const task = (r) => Promise.resolve()
+    const task = () => {}
 
     for (let i = 0; i < iterations; i++) {
       await pool.use(task)
