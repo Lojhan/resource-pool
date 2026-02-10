@@ -113,13 +113,7 @@ dist
 
 # End of https://www.toptal.com/developers/gitignore/api/node
 
-
-#Added by cargo
-
-/target
-Cargo.lock
-
-*.node
+# NPM build output
 .pnp.*
 .yarn/*
 !.yarn/patches

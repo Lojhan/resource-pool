@@ -1,7 +1,0 @@
-{
-  "type": "commonjs",
-  "name": "resource-pool-cjs-tests",
-  "dependencies": {
-    "resource-pool": "file:../../"
-  }
-}

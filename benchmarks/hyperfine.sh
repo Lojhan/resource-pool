@@ -26,4 +26,4 @@ echo "Iterations: 1,000,000"
 echo "Pool Size:  10"
 echo "-------------------------------------"
 
-hyperfine --warmup 3 --export-markdown benchmarks/results.md "${COMMANDS[@]}"
+hyperfine --show-output --warmup 3 --export-markdown benchmarks/results.md "${COMMANDS[@]}"

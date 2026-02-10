@@ -1,132 +1,60 @@
 {
   "name": "@lojhan/resource-pool",
   "version": "2.0.0",
-  "description": "A generic resource pool implementation for Node.js using N-API and Rust.",
-  "main": "index.wrapper.cjs",
-  "types": "index.wrapper.d.ts",
+  "description": "A generic resource pool implementation for Node.js written in TypeScript.",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
   "repository": {
     "type": "git",
     "url": "https://github.com/Lojhan/resource-pool.git"
   },
   "license": "MIT",
-  "browser": "browser.js",
   "keywords": [
-    "napi-rs",
-    "NAPI",
-    "N-API",
-    "Rust",
-    "node-addon",
-    "node-addon-api"
+    "resource pool",
+    "pool",
+    "pooling",
+    "generic pool",
+    "resource management",
+    "resource allocator",
+    "resource"
   ],
   "files": [
-    "index.d.ts",
-    "index.js",
-    "index.wrapper.mjs",
-    "index.wrapper.cjs",
-    "index.wrapper.d.ts",
-    "browser.js",
-    "implementations/index.mjs",
-    "implementations/index.cjs",
-    "implementations/index.d.ts"
+    "dist/src/**/*.js",
+    "dist/src/**/*.d.ts",
+    "dist/src/**/*.d.ts.map"
   ],
   "exports": {
     ".": {
-      "import": {
-        "types": "./index.wrapper.d.ts",
-        "default": "./index.wrapper.mjs"
-      },
-      "require": {
-        "types": "./index.wrapper.d.ts",
-        "default": "./index.wrapper.cjs"
-      }
-    },
-    "./implementations": {
-      "import": {
-        "types": "./implementations/index.d.ts",
-        "default": "./implementations/index.mjs"
-      },
-      "require": {
-        "types": "./implementations/index.d.ts",
-        "default": "./implementations/index.cjs"
-      }
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
     }
-  },
-  "napi": {
-    "binaryName": "resource_pool",
-    "targets": [
-      "x86_64-pc-windows-msvc",
-      "x86_64-apple-darwin",
-      "x86_64-unknown-linux-gnu",
-      "x86_64-unknown-linux-musl",
-      "aarch64-unknown-linux-gnu",
-      "i686-pc-windows-msvc",
-      "armv7-unknown-linux-gnueabihf",
-      "aarch64-apple-darwin",
-      "aarch64-linux-android",
-      "x86_64-unknown-freebsd",
-      "aarch64-unknown-linux-musl",
-      "aarch64-pc-windows-msvc",
-      "armv7-linux-androideabi",
-      "wasm32-wasip1-threads"
-    ]
-  },
-  "engines": {
-    "node": ">= 12.22.0 < 13 || >= 14.17.0 < 15 || >= 15.12.0 < 16 || >= 16.0.0"
   },
   "publishConfig": {
     "registry": "https://registry.npmjs.org/",
     "access": "public"
   },
   "scripts": {
-    "artifacts": "napi artifacts",
-    "build": "napi build --platform --release",
-    "build:debug": "napi build --platform",
-    "format": "run-p format:prettier format:rs format:toml",
-    "format:prettier": "prettier . -w",
-    "format:toml": "taplo format",
-    "format:rs": "cargo fmt",
-    "lint": "oxlint .",
-    "prepublishOnly": "napi prepublish -t npm",
-    "test:cjs": "node --expose-gc run_tests.js __test__/cjs",
-    "test:mjs": "node --expose-gc run_tests.js __test__/mjs",
-    "test": "npm run test:cjs && npm run test:mjs",
-    "preversion": "napi build --platform && git add .",
-    "version": "napi version",
-    "prepare": "husky"
+    "build": "tsc",
+    "prepublishOnly": "npm run build",
+    "format": "prettier . -w",
+    "lint": "prettier . --check",
+    "test": "tsx --test --expose-gc test/**/*.test.ts",
+    "test:basic": "tsx --test test/basic/*.test.ts",
+    "test:concurrency": "tsx --test test/concurrency/*.test.ts",
+    "test:features": "tsx --test test/features/*.test.ts",
+    "test:performance": "tsx --test --expose-gc test/performance/*.test.ts"
   },
   "devDependencies": {
-    "@emnapi/core": "^1.5.0",
-    "@emnapi/runtime": "^1.5.0",
-    "@napi-rs/cli": "^3.2.0",
-    "@oxc-node/core": "^0.0.35",
-    "@taplo/cli": "^0.7.0",
-    "@tybys/wasm-util": "^0.10.0",
-    "chalk": "^5.6.2",
-    "husky": "^9.1.7",
-    "lint-staged": "^16.1.6",
-    "npm-run-all2": "^8.0.4",
-    "oxlint": "^1.14.0",
+    "@types/node": "^25.2.2",
     "prettier": "^3.6.2",
-    "tinybench": "^6.0.0",
+    "tsx": "^4.21.0",
     "typescript": "^5.9.2"
-  },
-  "lint-staged": {
-    "*.@(js|ts|tsx)": [
-      "oxlint --fix"
-    ],
-    "*.@(js|ts|tsx|yml|yaml|md|json)": [
-      "prettier --write"
-    ],
-    "*.toml": [
-      "taplo format"
-    ]
   },
   "prettier": {
     "printWidth": 120,
-    "semi": false,
+    "semi": true,
     "trailingComma": "all",
     "singleQuote": true,
     "arrowParens": "always"
-  },
-  "packageManager": "yarn@4.12.0"
+  }
 }

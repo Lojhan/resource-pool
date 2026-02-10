@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "benchmark": "node runner.js",
-    "bench": "node runner.js"
+    "bench": "node runner.js",
+    "slab": "node slab-benchmark.js"
   },
   "dependencies": {
     "generic-pool": "^3.9.0",

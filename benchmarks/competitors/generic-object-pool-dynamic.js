@@ -1,25 +1,24 @@
-import { GenericObjectPool } from '@lojhan/resource-pool'
+import { createPool } from '@lojhan/resource-pool';
 
 export default {
-  name: 'GenericObjectPool (Dynamic/Sync)',
+  name: 'ObjectPool (Dynamic)',
 
-  setup: async (poolSize) => {
-    return GenericObjectPool.dynamic({
+  setup: (poolSize) => {
+    return createPool({
       min: poolSize,
       max: poolSize,
-      initial: poolSize,
-      resourceFactory: () => ({}),
-    })
+      resourceFactory: () => ({ id: Math.random() }),
+    });
   },
 
   run: async (pool, iterations) => {
     for (let i = 0; i < iterations; i++) {
-      const r = pool.acquire()
-      pool.release(r)
+      const r = pool.acquire();
+      if (r) pool.release(r);
     }
   },
 
   teardown: async (pool) => {
-    pool.destroy()
+    await pool.destroy();
   },
-}
+};
