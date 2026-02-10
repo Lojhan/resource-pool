@@ -1,23 +1,16 @@
 import { test } from 'node:test';
 import assert from 'node:assert';
-import { createPool, type PoolConfig } from '../../src/index';
-
-interface TestResource {
-  id: number;
-  slotIndex?: number;
-}
+import { createPool } from '../../src/index';
 
 test('Edge case - Empty pool configuration', async () => {
   // Test with min=0, max=0 should still create pool
-  const config: PoolConfig<TestResource> = {
+  const config = {
     min: 0,
     max: 1,
-    resourceFactory: async () => ({
-      id: 0,
-    }),
+    resourceFactory: () => ({ id: 0 }),
   };
 
-  const pool = await createPool(config);
+  const pool = createPool(config);
   const metrics = pool.getMetrics();
 
   assert.equal(metrics.available, 0, 'Pool with min=0 should have no initial resources');
@@ -32,17 +25,16 @@ test('Edge case - Empty pool configuration', async () => {
 });
 
 test('Edge case - Single resource pool (static)', async () => {
-  const config: PoolConfig<TestResource> = {
+  const config = {
     min: 1,
     max: 1,
-    resourceFactory: async () => ({
-      id: 1,
-    }),
+    resourceFactory: () => ({ id: 1 }),
   };
 
-  const pool = await createPool(config);
+  const pool = createPool(config);
 
-  const res1 = pool.acquire();
+  // First acquisition triggers on-demand creation
+  const res1 = await pool.acquireAsync();
   assert(res1 !== null, 'Should acquire single resource');
   assert.equal(res1.id, 1);
 
@@ -61,24 +53,21 @@ test('Edge case - Single resource pool (static)', async () => {
 test('Edge case - Large pool', async () => {
   const largePoolSize = 100;
 
-  const config: PoolConfig<TestResource> = {
+  const config = {
     min: largePoolSize,
     max: largePoolSize,
-    resourceFactory: async () => ({
-      id: Math.random(),
-    }),
+    resourceFactory: () => ({ id: Math.random() }),
   };
 
-  const pool = await createPool(config);
+  const pool = createPool(config);
 
   const metrics = pool.getMetrics();
-  assert.equal(metrics.size, largePoolSize, `Should create pool of size ${largePoolSize}`);
-  assert.equal(metrics.available, largePoolSize, `All resources should be available`);
+  assert.equal(metrics.capacity, largePoolSize, `Should create pool capacity of ${largePoolSize}`);
 
-  // Acquire a large number
+  // Acquire a large number - resources created on demand
   const resources = [];
   for (let i = 0; i < largePoolSize; i++) {
-    const res = pool.acquire();
+    const res = await pool.acquireAsync();
     assert(res !== null, `Should acquire resource ${i}`);
     resources.push(res);
   }
@@ -86,6 +75,7 @@ test('Edge case - Large pool', async () => {
   const metricsAfter = pool.getMetrics();
   assert.equal(metricsAfter.available, 0, 'All should be busy');
   assert.equal(metricsAfter.busy, largePoolSize, 'All should be tracked as busy');
+  assert.equal(metricsAfter.size, largePoolSize, 'All resources should be created');
 
   for (const res of resources) {
     pool.release(res);
@@ -97,17 +87,19 @@ test('Edge case - Large pool', async () => {
 test('Edge case - Rapid acquire/release cycles', async () => {
   let counter = 0;
 
-  const config: PoolConfig<TestResource> = {
+  const config = {
     min: 1,
     max: 1,
-    resourceFactory: async () => ({
-      id: counter++,
-    }),
+    resourceFactory: () => ({ id: counter++ }),
   };
 
-  const pool = await createPool(config);
+  const pool = createPool(config);
 
-  // Very rapid cycles
+  // First acquire creates the resource
+  const first = await pool.acquireAsync();
+  pool.release(first);
+
+  // Very rapid cycles with existing resource
   for (let i = 0; i < 1000; i++) {
     const res = pool.acquire();
     if (res) {
@@ -125,16 +117,14 @@ test('Edge case - Rapid acquire/release cycles', async () => {
 test('Edge case - acquireAsync with 0 timeout', async () => {
   let counter = 0;
 
-  const config: PoolConfig<TestResource> = {
+  const config = {
     min: 1,
     max: 1,
     acquireTimeoutMs: 0, // No timeout
-    resourceFactory: async () => ({
-      id: counter++,
-    }),
+    resourceFactory: () => ({ id: counter++ }),
   };
 
-  const pool = await createPool(config);
+  const pool = createPool(config);
 
   const res = await pool.acquireAsync();
   assert(res !== null, 'Should acquire with default timeout');
@@ -146,15 +136,13 @@ test('Edge case - acquireAsync with 0 timeout', async () => {
 test('Edge case - Release called multiple times causes error', async () => {
   let counter = 0;
 
-  const config: PoolConfig<TestResource> = {
+  const config = {
     min: 1,
     max: 1,
-    resourceFactory: async () => ({
-      id: counter++,
-    }),
+    resourceFactory: () => ({ id: counter++ }),
   };
 
-  const pool = await createPool(config);
+  const pool = createPool(config);
 
   const res = await pool.acquireAsync();
   let metrics = pool.getMetrics();
@@ -174,15 +162,13 @@ test('Edge case - Release called multiple times causes error', async () => {
 test('Edge case - Use with very long operation completes despite timeout', async () => {
   let counter = 0;
 
-  const config: PoolConfig<TestResource> = {
+  const config = {
     min: 1,
     max: 1,
-    resourceFactory: async () => ({
-      id: counter++,
-    }),
+    resourceFactory: () => ({ id: counter++ }),
   };
 
-  const pool = await createPool(config);
+  const pool = createPool(config);
 
   // The timeout applies to acquiring the resource, not the operation itself
   // So if we successfully acquire, the operation will complete even if longer than timeout
@@ -203,10 +189,10 @@ test('Edge case - AsyncPool with validation that always fails', async () => {
   let counter = 0;
   let recreateCount = 0;
 
-  const config: PoolConfig<TestResource> = {
+  const config = {
     min: 1,
     max: 1,
-    resourceFactory: async () => {
+    resourceFactory: () => {
       recreateCount++;
       if (recreateCount > 5) {
         throw new Error('Too many recreations');
@@ -215,10 +201,10 @@ test('Edge case - AsyncPool with validation that always fails', async () => {
         id: counter++,
       };
     },
-    validateResource: async () => false, // Always invalid
+    validateResource: () => false, // Always invalid
   };
 
-  const pool = await createPool(config);
+  const pool = createPool(config);
 
   // Acquiring will trigger validation-and-recreate loop
   // Eventually should hit the error limit or timeout
@@ -236,15 +222,13 @@ test('Edge case - AsyncPool with validation that always fails', async () => {
 test('Edge case - Pool destroy during async operation', async () => {
   let counter = 0;
 
-  const config: PoolConfig<TestResource> = {
+  const config = {
     min: 2,
     max: 2,
-    resourceFactory: async () => ({
-      id: counter++,
-    }),
+    resourceFactory: () => ({ id: counter++ }),
   };
 
-  const pool = await createPool(config);
+  const pool = createPool(config);
 
   // Start async acquire
   const acquirePromise = pool.acquireAsync(5000);
@@ -261,15 +245,13 @@ test('Edge case - Pool destroy during async operation', async () => {
 });
 
 test('Edge case - Metrics in destroyed pool', async () => {
-  const config: PoolConfig<TestResource> = {
+  const config = {
     min: 2,
     max: 2,
-    resourceFactory: async () => ({
-      id: Math.random(),
-    }),
+    resourceFactory: () => ({ id: Math.random() }),
   };
 
-  const pool = await createPool(config);
+  const pool = createPool(config);
 
   await pool.destroy();
 
@@ -279,17 +261,15 @@ test('Edge case - Metrics in destroyed pool', async () => {
 });
 
 test('Edge case - Dynamic pool with min equal to max after creation', async () => {
-  const config: PoolConfig<TestResource> = {
+  const config = {
     min: 2,
     max: 5,
-    resourceFactory: async () => ({
-      id: Math.random(),
-    }),
+    resourceFactory: () => ({ id: Math.random() }),
     idleTimeoutMs: 100,
     scaleDownIntervalMs: 50,
   };
 
-  const pool = await createPool(config);
+  const pool = createPool(config);
 
   // Scale up
   const resources = [];

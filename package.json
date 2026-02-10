@@ -11,7 +11,12 @@
   "license": "MIT",
   "keywords": [
     "resource pool",
-    "pool"
+    "pool",
+    "pooling",
+    "generic pool",
+    "resource management",
+    "resource allocator",
+    "resource"
   ],
   "files": [
     "dist/src/**/*.js",

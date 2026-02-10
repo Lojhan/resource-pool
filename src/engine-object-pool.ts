@@ -65,7 +65,7 @@ export class EnginePool {
    * @returns The result of the function
    */
   public async use<R>(
-    fn: (idx: number) => Promise<R>,
+    fn: (idx: number) => R | Promise<R>,
     { optimistic = true, timeout }: { optimistic?: boolean; timeout?: number } = {},
   ): Promise<R> {
     let idx: number | undefined;

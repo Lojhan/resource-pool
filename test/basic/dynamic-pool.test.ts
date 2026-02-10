@@ -1,13 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert';
-import { createPool, type PoolConfig } from '../../src/index';
+import { createPool } from '../../src/index';
 
 interface TestResource {
   id: number;
   created: number;
 }
 
-test('DynamicObjectPool - scale up on demand', async () => {
+test('ObjectPool - scale up on demand', async () => {
   const createTestFactory = () => {
     let counter = 0;
     return async (): Promise<TestResource> => ({
@@ -16,28 +16,28 @@ test('DynamicObjectPool - scale up on demand', async () => {
     });
   };
 
-  const config: PoolConfig<TestResource> = {
+  const config = {
     min: 2,
     max: 5,
     resourceFactory: createTestFactory(),
   };
 
-  const pool = await createPool(config);
+  const pool = createPool(config);
 
   let metrics = pool.getMetrics();
-  assert.equal(metrics.size, 2, 'Should start with min (2) resources');
   assert.equal(metrics.capacity, 5, 'Capacity should be max (5)');
 
-  // Acquire all initial resources
+  // Acquire resources - created on demand
   const resources = [];
   for (let i = 0; i < 2; i++) {
-    const res = pool.acquire();
+    const res = await pool.acquireAsync();
     assert(res !== null);
     resources.push(res);
   }
 
   metrics = pool.getMetrics();
-  assert.equal(metrics.available, 0, 'All initial resources should be busy');
+  assert.equal(metrics.available, 0, 'All acquired resources should be busy');
+  assert.equal(metrics.size, 2, 'Should have created 2 resources');
 
   // Trigger scale up by requesting more
   const asyncAcquirePromise = pool.acquireAsync(1000);
@@ -64,15 +64,15 @@ test('DynamicObjectPool - scale up on demand', async () => {
   await pool.destroy();
 });
 
-test('DynamicObjectPool - scale down on idle', async () => {
+test('ObjectPool - scale down on idle', async () => {
   const createTestFactory = () => {
     let counter = 0;
-    return async (): Promise<TestResource> => ({
+    return () => ({
       id: counter++,
       created: Date.now(),
     });
   };
-  const config: PoolConfig<TestResource> = {
+  const config = {
     min: 2,
     max: 5,
     resourceFactory: createTestFactory(),
@@ -80,10 +80,9 @@ test('DynamicObjectPool - scale down on idle', async () => {
     scaleDownIntervalMs: 100,
   };
 
-  const pool = await createPool(config);
+  const pool = createPool(config);
 
   let metrics = pool.getMetrics();
-  const initialSize = metrics.size!;
 
   // Acquire and release a resource to scale up
   const res1 = await pool.acquireAsync();
@@ -107,10 +106,10 @@ test('DynamicObjectPool - scale down on idle', async () => {
   await pool.destroy();
 });
 
-test('DynamicObjectPool - getMetrics includes pendingCreates', async () => {
+test('ObjectPool - getMetrics includes pendingCreates', async () => {
   const createDelay = 100;
   let counter = 0;
-  const config: PoolConfig<TestResource> = {
+  const config = {
     min: 1,
     max: 3,
     resourceFactory: async (): Promise<TestResource> => {
@@ -122,7 +121,7 @@ test('DynamicObjectPool - getMetrics includes pendingCreates', async () => {
     },
   };
 
-  const pool = await createPool(config);
+  const pool = createPool(config);
 
   // Acquire initial resource
   const res = await pool.acquireAsync();
@@ -149,7 +148,7 @@ test('DynamicObjectPool - getMetrics includes pendingCreates', async () => {
   await pool.destroy();
 });
 
-test('DynamicObjectPool - does not scale up beyond max', async () => {
+test('ObjectPool - does not scale up beyond max', async () => {
   const createTestFactory = () => {
     let counter = 0;
     return async (): Promise<TestResource> => ({
@@ -157,13 +156,13 @@ test('DynamicObjectPool - does not scale up beyond max', async () => {
       created: Date.now(),
     });
   };
-  const config: PoolConfig<TestResource> = {
+  const config = {
     min: 1,
     max: 2,
     resourceFactory: createTestFactory(),
   };
 
-  const pool = await createPool(config);
+  const pool = createPool(config);
 
   const res1 = await pool.acquireAsync();
   const res2 = await pool.acquireAsync();
@@ -183,7 +182,7 @@ test('DynamicObjectPool - does not scale up beyond max', async () => {
   await pool.destroy();
 });
 
-test('DynamicObjectPool - maintains min resources', async () => {
+test('ObjectPool - maintains min resources', async () => {
   const createTestFactory = () => {
     let counter = 0;
     return async (): Promise<TestResource> => ({
@@ -191,7 +190,7 @@ test('DynamicObjectPool - maintains min resources', async () => {
       created: Date.now(),
     });
   };
-  const config: PoolConfig<TestResource> = {
+  const config = {
     min: 3,
     max: 5,
     resourceFactory: createTestFactory(),
@@ -199,10 +198,24 @@ test('DynamicObjectPool - maintains min resources', async () => {
     scaleDownIntervalMs: 50,
   };
 
-  const pool = await createPool(config);
+  const pool = createPool(config);
+
+  // Create resources on demand
+  const res1 = await pool.acquireAsync();
+  const res2 = await pool.acquireAsync();
+  const res3 = await pool.acquireAsync();
+  const res4 = await pool.acquireAsync();
+  const res5 = await pool.acquireAsync();
 
   let metrics = pool.getMetrics();
-  assert.equal(metrics.size, 3, 'Should start with min resources');
+  assert.equal(metrics.size, 5, 'Should have created 5 resources');
+
+  // Release all
+  pool.release(res1);
+  pool.release(res2);
+  pool.release(res3);
+  pool.release(res4);
+  pool.release(res5);
 
   // Wait for scale down cycles
   await new Promise((resolve) => setTimeout(resolve, 300));
@@ -213,7 +226,7 @@ test('DynamicObjectPool - maintains min resources', async () => {
   await pool.destroy();
 });
 
-test('DynamicObjectPool - destroy() stops scale down timer', async () => {
+test('ObjectPool - destroy() stops scale down timer', async () => {
   const createTestFactory = () => {
     let counter = 0;
     return async (): Promise<TestResource> => ({
@@ -221,7 +234,7 @@ test('DynamicObjectPool - destroy() stops scale down timer', async () => {
       created: Date.now(),
     });
   };
-  const config: PoolConfig<TestResource> = {
+  const config = {
     min: 2,
     max: 4,
     resourceFactory: createTestFactory(),
@@ -229,7 +242,7 @@ test('DynamicObjectPool - destroy() stops scale down timer', async () => {
     scaleDownIntervalMs: 100,
   };
 
-  const pool = await createPool(config);
+  const pool = createPool(config);
 
   // Get initial state
   const res = await pool.acquireAsync();

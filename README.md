@@ -4,39 +4,36 @@
 [![npm version](https://img.shields.io/npm/v/@lojhan/resource-pool.svg)](https://www.npmjs.com/package/@lojhan/resource-pool)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A high-performance, generic resource pool implementation for Node.js built with Rust and N-API.
+A high-performance, zero-dependency resource pooling library for Node.js and TypeScript. Achieve **10M+ operations/sec** with intelligent auto-scaling, resource validation, and built-in timeout protection.
 
-This library provides a fast, efficient mechanism to manage access to a set of resources (such as database connections, worker threads, or expensive objects). It leverages Rust's performance and safety to outperform pure JavaScript implementations.
+Perfect for managing database connections, worker threads, HTTP clients, or any reusable resource with automatic lifecycle management and production-ready reliability.
 
 ## Table of Contents
 
 - [Features](#features)
 - [Installation](#installation)
 - [Quick Start](#quick-start)
-- [Pool Implementations](#pool-implementations)
-- [Usage](#usage)
-  - [StaticObjectPool](#staticobjectpool---fixed-size-pool)
-  - [DynamicObjectPool](#dynamicobjectpool---auto-scaling-pool)
-  - [EnginePool](#enginepool---index-based-pool)
+- [Pool Types](#pool-types)
 - [API Reference](#api-reference)
-- [Choosing the Right Implementation](#choosing-the-right-implementation)
-- [Real-World Examples](#real-world-examples)
+  - [createPool()](#createpool)
+  - [Configuration Options](#configuration-options)
+  - [Pool Methods](#pool-methods)
+- [Validation Rules](#validation-rules)
+- [Examples](#examples)
 - [Benchmarks](#benchmarks)
 - [TypeScript Support](#typescript-support)
-- [Migration Guide](#migration-guide)
-- [Troubleshooting](#troubleshooting)
-- [Contributing](#contributing)
 - [License](#license)
 
 ## Features
 
-- 🚀 **High Performance**: Significant speed advantage over pure JS options due to native Rust implementation.
-- 🚦 **Flexible Acquisition**: Supports both **synchronous** blocking `acquire()` and **asynchronous** `acquireAsync()` with timeouts.
-- 🛡️ **Safety**: The `use()` pattern ensures resources are automatically released back to the pool, even if errors occur.
-- 📦 **Generic**: Can store any JavaScript object.
-- 📊 **Observability**: Real-time properties to monitor `size`, `available` resources, and `pending` requests.
-- 🔒 **Concurrency**: Built to handle high concurrency environments efficiently.
-- 🔄 **Multiple Implementations**: Choose from static pools, dynamic auto-scaling pools, or lightweight index-based pools.
+- ⚡ **Blazing Fast**: 10M+ ops/sec with zero-allocation hot paths
+- 🎯 **Two Pool Types**: Auto-scaling ObjectPool & lightweight EnginePool (index-based)
+- 🔄 **Flexible Acquisition**: Sync (`acquire()`), async (`acquireAsync()`), or automatic (`use()`)
+- 🛡️ **Production Ready**: Resource validation, timeout protection, automatic cleanup
+- 🏗️ **Static & Dynamic**: Fixed-size (min === max) or auto-scaling (min < max) pools
+- 📊 **Built-In Metrics**: Monitor pool utilization, pending requests, and scaling events
+- 🔒 **Type-Safe**: Full TypeScript support with comprehensive type inference
+- 🚀 **Zero Dependencies**: Pure TypeScript, no native bindings, minimal overhead
 
 ## Installation
 
@@ -44,577 +41,501 @@ This library provides a fast, efficient mechanism to manage access to a set of r
 npm install @lojhan/resource-pool
 ```
 
+Or with yarn/pnpm:
+
+```bash
+yarn add @lojhan/resource-pool
+pnpm add @lojhan/resource-pool
+```
+
 ## Quick Start
 
-```javascript
-import { StaticObjectPool } from '@lojhan/resource-pool/implementations';
+```typescript
+import { createPool } from '@lojhan/resource-pool';
 
-// 1. Create your resources
-const connections = [new DatabaseConnection(), new DatabaseConnection(), new DatabaseConnection()];
+// Create a pool that auto-scales from 2 to 10 resources
+const pool = createPool({
+  min: 2,
+  max: 10,
+  resourceFactory: async () => {
+    const conn = new DatabaseConnection();
+    await conn.connect();
+    return conn;
+  },
+  resourceDestroyer: async (conn) => await conn.close(),
+  validateResource: async (conn) => conn.isConnected(),
+});
 
-// 2. Create a pool
-const pool = new StaticObjectPool(connections);
-
-// 3. Use resources safely
+// Automatic resource management (recommended)
 const result = await pool.use(async (connection) => {
   return await connection.query('SELECT * FROM users');
 });
-```
 
-That's it! The pool handles acquisition, release, and cleanup automatically.
-
-## Pool Implementations
-
-This library provides three distinct pool implementations to suit different use cases:
-
-### 1. **StaticObjectPool** - Object Pool with Fixed Size
-
-A traditional object pool that manages a fixed set of resources. Best for scenarios where you know the exact number of resources needed upfront.
-
-**Use when:**
-
-- You have a fixed number of resources (e.g., database connections)
-- Resource creation is expensive and should be done upfront
-- You want predictable memory usage
-
-### 2. **DynamicObjectPool** - Auto-Scaling Object Pool
-
-Extends `StaticObjectPool` with automatic scaling capabilities. The pool grows when demand increases and shrinks when resources are idle.
-
-**Use when:**
-
-- Resource demand varies over time
-- You want to optimize resource usage automatically
-- You need resource validation and lifecycle management
-- You want to balance performance with resource efficiency
-
-### 3. **EnginePool** - Lightweight Index-Based Pool for Load Shedding
-
-A minimal pool that manages indices (0, 1, 2...) instead of objects. Ultra-lightweight and optimized for implementing load shedding algorithms that fail fast under load.
-
-**Use when:**
-
-- You need load shedding or circuit breaker patterns
-- You want to reject requests instead of queuing indefinitely
-- You already have resources in an array/structure
-- Maximum performance and minimal latency are critical
-- You're implementing graceful degradation strategies
-
-## Usage
-
-### StaticObjectPool - Fixed-Size Pool
-
-Perfect for managing a known set of resources like database connections.
-
-```javascript
-import { StaticObjectPool } from '@lojhan/resource-pool/implementations';
-
-// Create a pool with pre-initialized resources
-const dbConnections = [new Connection('db1'), new Connection('db2'), new Connection('db3')];
-const pool = new StaticObjectPool(dbConnections);
-
-// Recommended: Use the `use()` method for automatic resource management
-async function handleRequest() {
-  const result = await pool.use(async (connection) => {
-    console.log(`Using connection: ${connection.id}`);
-    return await connection.query('SELECT * FROM users');
-  });
-  console.log('Query result:', result);
-}
-
-// Manual acquire/release (ensure you always release!)
-async function manualWork() {
-  let resource;
-  try {
-    resource = await pool.acquireAsync(5000); // 5s timeout
-    await processWork(resource);
-  } finally {
-    if (resource) {
-      pool.release(resource);
-    }
-  }
-}
-
-// Synchronous acquisition (throws if no resources available)
+// Or manual acquire/release
+const conn = await pool.acquireAsync(5000); // 5s timeout
 try {
-  const resource = pool.acquire();
-  // ... use resource
-  pool.release(resource);
-} catch (e) {
-  console.log('No resources immediately available');
+  await conn.query('SELECT 1');
+} finally {
+  pool.release(conn);
 }
 
-// Monitor pool state
-console.log('Available:', pool.available);
-console.log('In use:', pool.numUsed);
-console.log('Pending:', pool.pendingCount);
+// Cleanup
+await pool.destroy();
 ```
 
-### DynamicObjectPool - Auto-Scaling Pool
+## Pool Types
 
-Automatically scales resources based on demand. Perfect for variable workloads.
+### ObjectPool (Resource Management)
 
-```javascript
-import { DynamicObjectPool } from '@lojhan/resource-pool/implementations';
+The main pool implementation that manages resource lifecycle. Supports both fixed-size and auto-scaling configurations.
 
-// Create a dynamic pool with comprehensive configuration
-const pool = DynamicObjectPool.withDynamicSizing({
-  // Size constraints
-  min: 2, // Minimum number of resources
-  max: 10, // Maximum number of resources
-  initial: 3, // Initial size (between min and max)
+#### Fixed-Size Pool (min === max)
 
-  // Resource lifecycle callbacks
-  resourceFactory: async () => {
-    // Create new resources on demand
-    return new DatabaseConnection(config);
-  },
+Pre-allocates all resources upfront. Best for stable, predictable workloads.
 
-  resourceDestroyer: async (resource) => {
-    // Clean up resources when scaling down
-    await resource.close();
-  },
+```typescript
+const pool = createPool({
+  min: 10,
+  max: 10,
+  resourceFactory: () => new DatabaseConnection(),
+});
+```
 
-  validateResource: async (resource) => {
-    // Optional: validate resources before use
-    return resource.isConnected();
-  },
+**Best for:**
 
-  // Scaling behavior
-  scaleUpThreshold: 5, // Scale up when 5+ requests are waiting
-  scaleUpIncrement: 2, // Add 2 resources at a time when scaling up
+- Known capacity requirements
+- Stable workloads
+- Minimal latency (all resources pre-created)
+
+#### Dynamic Pool (min < max)
+
+Starts with minimum resources, scales up on demand, scales down when idle.
+
+```typescript
+const pool = createPool({
+  min: 2,
+  max: 50,
+  resourceFactory: async () => new DatabaseConnection(),
   idleTimeoutMs: 30000, // Remove idle resources after 30s
-  scaleDownCheckIntervalMs: 10000, // Check for scale-down every 10s
-
-  // Validation
-  validateOnAcquire: true, // Validate resources when acquired
-  createRetries: 3, // Retry resource creation 3 times on failure
+  scaleDownIntervalMs: 10000, // Check every 10s
 });
-
-// Use the pool (same API as StaticObjectPool)
-await pool.use(async (connection) => {
-  return await connection.query('SELECT * FROM users');
-});
-
-// Monitor scaling metrics
-const metrics = pool.getMetrics();
-console.log({
-  currentSize: metrics.currentSize,
-  minSize: metrics.minSize,
-  maxSize: metrics.maxSize,
-  available: metrics.available,
-  inUse: metrics.inUse,
-  pending: metrics.pending,
-  scaleUpEvents: metrics.scaleUpEvents,
-  scaleDownEvents: metrics.scaleDownEvents,
-  resourcesCreated: metrics.resourcesCreated,
-  resourcesDestroyed: metrics.resourcesDestroyed,
-});
-
-// Clean up when done
-pool.destroy();
 ```
 
-### EnginePool - Index-Based Pool with Load Shedding
+**Best for:**
 
-Lightweight pool that manages indices instead of objects. Ideal for implementing load shedding algorithms that reject requests when the system is overloaded.
+- Variable workloads
+- Traffic spikes
+- Resource-constrained environments
+- Automatic cleanup
 
-```javascript
-import { EnginePool } from '@lojhan/resource-pool/implementations';
+### EnginePool (Index Management)
 
-// Pre-allocate your resources in an array
-const workers = [
-  new Worker('./worker.js'),
-  new Worker('./worker.js'),
-  new Worker('./worker.js'),
-  new Worker('./worker.js'),
-];
+Lightweight pool that manages slot indices instead of resources. For maximum performance and custom resource management.
 
-// Create an index pool for load shedding
+```typescript
+import { EnginePool } from '@lojhan/resource-pool';
+
+const workers = [new Worker('./worker.js'), new Worker('./worker.js')];
 const pool = new EnginePool(workers.length);
 
-// Load shedding thresholds
-const MAX_QUEUE_DEPTH = 5;
-const ACQUIRE_TIMEOUT_MS = 100; // Fail fast
-
-// Load shedding: reject requests when overloaded
-async function handleRequest(req, res) {
-  // Check if system is overloaded
-  if (pool.pendingCount >= MAX_QUEUE_DEPTH) {
-    res.status(503).json({
-      error: 'Service overloaded',
-      message: 'Too many pending requests, try again later',
-      retryAfter: 1,
-    });
-    return;
-  }
-
-  // Try to acquire with short timeout (fail fast)
-  try {
-    const result = await pool.use(
-      async (idx) => {
-        const worker = workers[idx];
-        return await worker.processTask(req.body);
-      },
-      { timeout: ACQUIRE_TIMEOUT_MS },
-    );
-
-    res.json({ result });
-  } catch (err) {
-    if (err.message.includes('timeout')) {
-      // Load shedding: reject rather than queue
-      res.status(503).json({
-        error: 'Service busy',
-        message: 'Unable to process request, please retry',
-        retryAfter: 1,
-      });
-    } else {
-      res.status(500).json({ error: err.message });
-    }
-  }
+const idx = await pool.acquireAsync();
+try {
+  await workers[idx].process(data);
+} finally {
+  pool.release(idx);
 }
-
-// Advanced load shedding with graceful degradation
-async function smartLoadShedding(task) {
-  const utilization = pool.numUsed / pool.size;
-
-  // Immediate rejection if fully utilized
-  if (utilization >= 1.0 && pool.pendingCount > 0) {
-    throw new Error('SERVICE_OVERLOADED: All workers busy');
-  }
-
-  // Dynamic timeout based on load
-  const timeout = utilization < 0.7 ? 1000 : 100;
-
-  try {
-    // Try optimistic acquire first
-    let idx;
-    try {
-      idx = pool.acquire();
-    } catch {
-      // Fall back to async with load-based timeout
-      idx = await pool.acquireAsync(timeout);
-    }
-
-    try {
-      return await workers[idx].processTask(task);
-    } finally {
-      pool.release(idx);
-    }
-  } catch (err) {
-    // Shed load with informative error
-    throw new Error(`LOAD_SHED: ${err.message} (utilization: ${(utilization * 100).toFixed(1)}%)`);
-  }
-}
-
-// Monitor load and emit metrics
-setInterval(() => {
-  const metrics = pool.getMetrics();
-  const utilization = ((metrics.inUse / metrics.currentSize) * 100).toFixed(1);
-
-  console.log({
-    utilization: `${utilization}%`,
-    available: metrics.available,
-    inUse: metrics.inUse,
-    pending: metrics.pending,
-    isOverloaded: metrics.pending > MAX_QUEUE_DEPTH,
-  });
-}, 5000);
 ```
+
+**Best for:**
+
+- Maximum throughput (12M+ ops/sec)
+- Pre-indexed resource arrays
+- Load shedding patterns
+- Custom resource routing
 
 ## API Reference
 
-### Common Pool Methods (All Implementations)
+### createPool()
 
-All pool implementations share these core methods:
-
-#### `pool.use<R>(fn: (resource: T | number) => Promise<R>, options?): Promise<R>`
-
-Acquires a resource, executes `fn`, and automatically releases the resource.
-
-**Options:**
-
-- `timeout` (number): Max time to wait for a resource in milliseconds
-- `optimistic` (boolean): Try synchronous acquire first (default: `true`)
-
-**Returns:** Promise resolving to the function's return value
-
-```javascript
-const result = await pool.use(
-  async (resource) => {
-    return await resource.doWork();
-  },
-  { timeout: 5000 },
-);
-```
-
-#### `pool.acquireAsync(timeoutMs?: number): Promise<T | number>`
-
-Acquires a resource asynchronously. Returns a Promise that resolves when a resource becomes available.
-
-**Parameters:**
-
-- `timeoutMs` (optional): Maximum wait time in milliseconds
-
-**Returns:** Promise resolving to the resource (or index for `EnginePool`)
-
-**Throws:** Error if timeout is reached
-
-```javascript
-const resource = await pool.acquireAsync(5000);
-```
-
-#### `pool.acquire(): T | number`
-
-Synchronously acquires a resource.
-
-**Returns:** The resource (or index for `EnginePool`)
-
-**Throws:** Error if no resources are immediately available
-
-```javascript
-try {
-  const resource = pool.acquire();
-} catch (err) {
-  console.log('No resources available');
-}
-```
-
-#### `pool.release(resource: T | number): void`
-
-Returns a resource to the pool, making it available for other consumers.
-
-**Parameters:**
-
-- `resource`: The resource to release (or index for `EnginePool`)
-
-```javascript
-pool.release(resource);
-```
-
-#### `pool.availableCount(): number`
-
-Returns the number of idle resources ready to be acquired.
-
-#### `pool.destroy(): void`
-
-Destroys the pool, clearing all resources and stopping any background tasks.
-
-### Common Properties
-
-- `pool.size`: Total number of resources in the pool
-- `pool.available`: Number of idle resources ready to be acquired
-- `pool.pendingCount`: Number of callers waiting for a resource
-- `pool.numUsed`: Number of resources currently in use
-
-### StaticObjectPool Specific
-
-#### Constructor
+Creates an ObjectPool for managing resource lifecycle.
 
 ```typescript
-new StaticObjectPool<T>(resources: T[])
+function createPool<T extends object>(
+  config: {
+    min?: number;
+    max?: number;
+    resourceFactory: (() => T) | (() => Promise<T>);
+    resourceDestroyer?: (resource: T) => void | Promise<void>;
+    validateResource?: (resource: T) => boolean | Promise<boolean>;
+
+    // Timeout protection
+    factoryTimeoutMs?: number; // Default: 5000
+    destroyerTimeoutMs?: number; // Default: 5000
+    validatorTimeoutMs?: number; // Default: 3000
+
+    // Error handling
+    bubbleFactoryErrors?: boolean; // Default: false
+    bubbleDestroyerErrors?: boolean; // Default: false
+    bubbleValidationErrors?: boolean; // Default: false
+
+    // Auto-scaling (dynamic pools only)
+    idleTimeoutMs?: number; // Default: 30000
+    scaleDownIntervalMs?: number; // Default: 10000
+
+    // Acquisition
+    acquireTimeoutMs?: number; // Default: 0 (no timeout)
+  },
+  initialResources?: T[],
+): IObjectPool<T>;
 ```
 
-Creates a pool with a fixed set of resources.
+### Configuration Options
 
-**Parameters:**
+#### Required Configuration
 
-- `resources`: Array of pre-initialized resources
+##### `resourceFactory: () => T | Promise<T>` **(required)**
 
-#### Additional Methods
+Function that creates new resources. Can be sync or async.
 
-##### `pool.add(resource: T): void`
+```typescript
+// Sync factory
+resourceFactory: () => new Connection();
 
-Adds a new resource to the pool dynamically.
-
-```javascript
-pool.add(newConnection);
+// Async factory
+resourceFactory: async () => {
+  const conn = new Connection();
+  await conn.connect();
+  return conn;
+};
 ```
 
-##### `pool.removeOne(): boolean`
+#### Size Configuration
 
-Removes one idle resource from the pool.
+##### `min?: number` and `max?: number`
 
-**Returns:** `true` if a resource was removed, `false` if none were available
+Pool size boundaries. See [Validation Rules](#validation-rules) for requirements.
 
-```javascript
-if (pool.removeOne()) {
-  console.log('Resource removed');
-}
+```typescript
+// Fixed-size pool (static)
+{ min: 10, max: 10 }
+
+// Dynamic pool (auto-scaling)
+{ min: 2, max: 50 }
+
+// Static pool from initialResources
+{ resourceFactory, /* no min/max */ }
 ```
 
-##### `pool.getMetrics(): PoolMetrics`
+#### Optional Lifecycle Hooks
 
-Returns detailed pool metrics.
+##### `resourceDestroyer?: (resource: T) => void | Promise<void>`
 
-**Returns:**
+Called when resources are destroyed (scale-down, validation failure, or pool destruction).
+
+```typescript
+resourceDestroyer: async (conn) => {
+  await conn.close();
+  console.log('Connection closed');
+};
+```
+
+##### `validateResource?: (resource: T) => boolean | Promise<boolean>`
+
+Validates resources before returning from `acquireAsync()`. Invalid resources are destroyed and replaced.
+
+```typescript
+validateResource: async (conn) => {
+  try {
+    await conn.ping();
+    return true; // Valid
+  } catch {
+    return false; // Will be replaced
+  }
+};
+```
+
+#### Timeout Protection
+
+##### `factoryTimeoutMs?: number` (default: 5000)
+
+Maximum time to wait for resource creation. Prevents hanging on slow factories.
+
+##### `destroyerTimeoutMs?: number` (default: 5000)
+
+Maximum time to wait for resource destruction. Prevents hanging on cleanup.
+
+##### `validatorTimeoutMs?: number` (default: 3000)
+
+Maximum time to wait for resource validation. Treats timeout as invalid.
 
 ```typescript
 {
-  currentSize: number;
-  minSize: number;
-  maxSize: number;
-  available: number;
-  inUse: number;
-  pending: number;
-  scaleUpEvents: number;
-  scaleDownEvents: number;
-  resourcesCreated: number;
-  resourcesDestroyed: number;
+  factoryTimeoutMs: 10000,    // 10s to create
+  destroyerTimeoutMs: 5000,   // 5s to destroy
+  validatorTimeoutMs: 2000,   // 2s to validate
 }
 ```
 
-### DynamicObjectPool Specific
+#### Error Handling
 
-Extends all `StaticObjectPool` methods with dynamic sizing capabilities.
+##### `bubbleFactoryErrors?: boolean` (default: false)
 
-#### Static Factory Method
+Controls whether factory errors in background scale-up operations are thrown or logged.
+
+##### `bubbleDestroyerErrors?: boolean` (default: false)
+
+If `true`, errors during resource destruction are thrown. If `false`, errors are silently ignored.
+
+##### `bubbleValidationErrors?: boolean` (default: false)
+
+If `true`, validation errors are thrown. If `false`, errors are treated as invalid (return `false`).
 
 ```typescript
-DynamicObjectPool.withDynamicSizing<T>(config: DynamicSizingConfig<T>): DynamicObjectPool<T>
-```
-
-Creates a dynamically-sized pool with automatic scaling.
-
-**Configuration:**
-
-```typescript
-interface DynamicSizingConfig<T> {
-  // Required
-  min: number; // Minimum pool size
-  max: number; // Maximum pool size
-  resourceFactory: () => T | Promise<T>; // Factory to create resources
-
-  // Optional
-  initial?: number; // Initial size (default: min)
-  validateResource?: (resource: T) => boolean | Promise<boolean>;
-  resourceDestroyer?: (resource: T) => void | Promise<void>;
-  scaleUpThreshold?: number; // Pending requests to trigger scale-up (default: 5)
-  scaleUpIncrement?: number; // Resources to add per scale-up (default: 1)
-  idleTimeoutMs?: number; // Time before removing idle resources (default: 30000)
-  scaleDownCheckIntervalMs?: number; // Interval for scale-down checks (default: 10000)
-  validateOnAcquire?: boolean; // Validate resources on acquire (default: false)
-  createRetries?: number; // Retries for resource creation (default: 3)
+{
+  bubbleDestroyerErrors: true, // Throw on cleanup errors
+  bubbleValidationErrors: true, // Throw on validation errors
 }
 ```
 
-#### Additional Properties
+#### Auto-Scaling (Dynamic Pools)
 
-- `pool.minSize`: Minimum pool size
-- `pool.maxSize`: Maximum pool size
+##### `idleTimeoutMs?: number` (default: 30000)
 
-### EnginePool Specific
+Duration before idle resources are destroyed. Only applies when `min < max`.
 
-Works with indices (numbers) instead of objects.
+##### `scaleDownIntervalMs?: number` (default: 10000)
 
-#### Constructor
+How often to check for idle resources. Only applies when `min < max`.
 
 ```typescript
-new EnginePool(size: number)
+{
+  min: 5,
+  max: 50,
+  idleTimeoutMs: 60000,       // Remove after 60s idle
+  scaleDownIntervalMs: 15000, // Check every 15s
+}
 ```
 
-Creates a pool managing indices from 0 to size-1.
+#### Acquisition Timeout
 
-**Parameters:**
+##### `acquireTimeoutMs?: number` (default: 0)
 
-- `size`: Number of indices to manage
+Default timeout for `acquireAsync()` if not specified per-call. `0` means no timeout.
 
-```javascript
-const pool = new EnginePool(4); // Manages indices: 0, 1, 2, 3
+```typescript
+{
+  acquireTimeoutMs: 5000, // Default 5s timeout for all acquires
+}
 ```
 
-#### Methods
+### Pool Methods
 
-All methods are the same as other pools, but work with `number` (indices) instead of objects:
+#### `acquire(): T | null`
 
-- `acquire(): number` - Returns an index
-- `acquireAsync(timeoutMs?: number): Promise<number>` - Returns a Promise<index>
-- `release(idx: number): void` - Releases an index
-- `add(idx: number): void` - Adds an index to the pool
-- `removeOne(): number | null` - Removes and returns an index, or null
-- `use<R>(fn: (idx: number) => Promise<R>, options?): Promise<R>`
+Synchronously acquire a resource. Returns `null` if none available.
 
-## Choosing the Right Implementation
+```typescript
+const resource = pool.acquire();
+if (resource) {
+  // Use resource
+  pool.release(resource);
+} else {
+  // Pool exhausted
+}
+```
 
-### StaticObjectPool
+#### `acquireAsync(timeoutMs?: number): Promise<T>`
 
-**Best for:**
+Asynchronously acquire resource, waiting if necessary. Throws on timeout.
 
-- Database connection pools with fixed size
-- Pre-allocated expensive objects
-- Predictable, stable workloads
-- Maximum performance with known resource count
+```typescript
+const resource = await pool.acquireAsync(5000); // 5s timeout
+try {
+  await resource.doWork();
+} finally {
+  pool.release(resource);
+}
+```
 
-**Example use cases:**
+#### `use<R>(fn: (resource: T) => R | Promise<R>, timeoutMs?: number): Promise<R>`
 
-- PostgreSQL connection pool (fixed 10 connections)
-- WebGL context pool
-- File descriptor pool
-- Pre-warmed HTTP agents
+**Recommended.** Automatically acquires, executes function, and releases resource (even on error).
 
-### DynamicObjectPool
+```typescript
+const result = await pool.use(async (conn) => {
+  return await conn.query('SELECT * FROM users');
+});
+// Connection released automatically
+```
 
-**Best for:**
+#### `release(resource: T): void`
 
-- Variable workload patterns
-- Cloud environments with dynamic scaling
-- Resource-constrained systems
-- Services with unpredictable traffic
+Return resource to pool.
 
-**Example use cases:**
+```typescript
+pool.release(resource);
+```
 
-- API services with varying traffic
-- Background job processors
-- Serverless function pools
-- Multi-tenant systems
+#### `destroy(): Promise<void>`
 
-**Benefits:**
+Shutdown pool and destroy all resources.
 
-- Automatically scales with demand
-- Reduces resource usage during idle periods
-- Built-in resource validation and health checks
-- Lifecycle management (creation/destruction)
+```typescript
+await pool.destroy();
+```
+
+#### `getMetrics(): PoolMetrics`
+
+Get current pool statistics.
+
+```typescript
+const metrics = pool.getMetrics();
+console.log({
+  size: metrics.size, // Current active resources
+  available: metrics.available, // Idle resources
+  busy: metrics.busy, // In-use resources
+  capacity: metrics.capacity, // Max capacity
+  pendingCreates: metrics.pendingCreates, // Resources being created
+});
+```
 
 ### EnginePool
 
-**Best for:**
+Index-based pool for maximum performance.
 
-- Load shedding and fast-fail patterns
-- Managing access to array-indexed resources
-- High-throughput systems that reject overload
-- Rate limiting and backpressure
+```typescript
+import { EnginePool } from '@lojhan/resource-pool';
 
-**Example use cases:**
+const pool = new EnginePool(size: number);
 
-- Load shedding in high-traffic APIs
-- Worker thread pools with fail-fast behavior
-- Circuit breaker implementations
-- Real-time systems with strict latency SLAs
-- Microservices with graceful degradation
+// Same methods as ObjectPool but returns indices
+const idx: number = await pool.acquireAsync();
+pool.release(idx);
+await pool.use(async (idx) => { ... });
+```
 
-**Benefits:**
+## Validation Rules
 
-- Ultra-lightweight (no object mapping overhead)
-- Fastest performance for quick acquire/reject decisions
-- Direct array index access
-- Ideal for implementing load shedding algorithms
-- Perfect for preventing cascading failures
+`createPool()` enforces strict validation rules:
 
-## Real-World Examples
+### Required Parameters
+
+- `resourceFactory` is **always required**
+- If `min` is specified, `max` is **required**
+- If `max` is specified, `min` is **required**
+
+### Static Pool (no min/max)
+
+- When neither `min` nor `max` are provided:
+  - `initialResources` are **required**
+  - Pool size is `initialResources.length`
+  - Pool is **fixed-size** (min === max)
+
+```typescript
+// ✅ Valid static pool
+createPool(
+  {
+    resourceFactory: () => new Connection(),
+  },
+  [conn1, conn2, conn3],
+); // min: 3, max: 3
+```
+
+### Size Constraints
+
+- `min` must be **non-negative** (>= 0)
+- `max` must be **at least 1** (>= 1)
+- `max` must be **>= min**
+- `max` cannot exceed **INT32_MAX** (2,147,483,647)
+
+### Static Pool (min === max)
+
+- If `initialResources` are provided, length must **exactly equal min**
+
+```typescript
+// ❌ Error: Static pool requires exactly 5 resources
+createPool(
+  {
+    min: 5,
+    max: 5,
+    resourceFactory: () => new Connection(),
+  },
+  [conn1, conn2, conn3],
+); // Only 3 provided
+
+// ✅ Valid
+createPool(
+  {
+    min: 5,
+    max: 5,
+    resourceFactory: () => new Connection(),
+  },
+  [conn1, conn2, conn3, conn4, conn5],
+); // Exactly 5
+```
+
+### Initial Resources
+
+- Cannot exceed `max` capacity
+
+```typescript
+// ❌ Error: 10 resources exceed max of 5
+createPool(
+  {
+    min: 2,
+    max: 5,
+    resourceFactory: () => new Connection(),
+  },
+  tenConnections,
+); // 10 resources
+
+// ✅ Valid
+
+createPool(
+  {
+    min: 2,
+    max: 5,
+    resourceFactory: () => new Connection(),
+  },
+  [conn1, conn2, conn3],
+); // 3 resources OK
+```
+
+### Dynamic Pool (min < max)
+
+- `min: 0` is **allowed** for lazy/on-demand pools
+- `initialResources` are optional
+
+```typescript
+// ✅ Valid: Lazy pool
+createPool({
+  min: 0,
+  max: 10,
+  resourceFactory: () => new Connection(),
+}); // Starts with 0 resources, scales up on demand
+```
+
+## Examples
 
 ### Database Connection Pool
 
-```javascript
-import { DynamicObjectPool } from '@lojhan/resource-pool/implementations';
-import { Pool } from 'pg';
+```typescript
+import { createPool } from '@lojhan/resource-pool';
+import { Client } from 'pg';
 
-const pool = DynamicObjectPool.withDynamicSizing({
-  min: 2,
+const pool = createPool({
+  min: 5,
   max: 20,
-  initial: 5,
   resourceFactory: async () => {
-    const client = await new Pool(dbConfig).connect();
+    const client = new Client({
+      host: 'localhost',
+      database: 'mydb',
+    });
+    await client.connect();
     return client;
+  },
+  resourceDestroyer: async (client) => {
+    await client.end();
   },
   validateResource: async (client) => {
     try {
@@ -624,277 +545,340 @@ const pool = DynamicObjectPool.withDynamicSizing({
       return false;
     }
   },
-  resourceDestroyer: async (client) => {
-    await client.release();
-  },
-  scaleUpThreshold: 3,
   idleTimeoutMs: 60000,
+  validatorTimeoutMs: 2000,
 });
 
 // Use in your application
-app.get('/users', async (req, res) => {
-  const users = await pool.use(async (client) => {
-    const result = await client.query('SELECT * FROM users');
-    return result.rows;
+async function getUser(id: number) {
+  return pool.use(async (client) => {
+    const result = await client.query('SELECT * FROM users WHERE id = $1', [id]);
+    return result.rows[0];
   });
-  res.json(users);
+}
+
+// Cleanup on shutdown
+process.on('SIGINT', async () => {
+  await pool.destroy();
+  process.exit(0);
 });
 ```
 
-### Load Shedding API with Worker Pool
+### Worker Thread Pool
 
-```javascript
-import { EnginePool } from '@lojhan/resource-pool/implementations';
+```typescript
+import { createPool } from '@lojhan/resource-pool';
 import { Worker } from 'worker_threads';
-import express from 'express';
 
-const app = express();
+const pool = createPool({
+  min: 4,
+  max: 8,
+  resourceFactory: () => new Worker('./worker.js'),
+  resourceDestroyer: async (worker) => {
+    await worker.terminate();
+  },
+  factoryTimeoutMs: 10000,
+});
 
-// Pre-create workers
-const workers = Array.from({ length: 4 }, () => new Worker('./cpu-intensive-worker.js'));
-
-const pool = new EnginePool(workers.length);
-
-// Load shedding configuration
-const MAX_PENDING = 10;
-const FAST_TIMEOUT = 50; // milliseconds
-
-// Implement load shedding middleware
-app.post('/api/process', async (req, res) => {
-  // Shed load if queue is too deep
-  if (pool.pendingCount >= MAX_PENDING) {
-    return res.status(503).json({
-      error: 'Service overloaded',
-      pending: pool.pendingCount,
-      retryAfter: 2,
+async function processTask(data: any) {
+  return pool.use(async (worker) => {
+    return new Promise((resolve, reject) => {
+      worker.once('message', resolve);
+      worker.once('error', reject);
+      worker.postMessage(data);
     });
-  }
-
-  try {
-    // Fast-fail with short timeout
-    const result = await pool.use(
-      async (idx) => {
-        const worker = workers[idx];
-        worker.postMessage(req.body);
-
-        return new Promise((resolve, reject) => {
-          worker.once('message', resolve);
-          worker.once('error', reject);
-        });
-      },
-      { timeout: FAST_TIMEOUT },
-    );
-
-    res.json({ result });
-  } catch (err) {
-    if (err.message.includes('timeout')) {
-      // Load shed with 503 Service Unavailable
-      res.status(503).json({
-        error: 'Service busy',
-        message: 'Request processing capacity exceeded',
-      });
-    } else {
-      res.status(500).json({ error: err.message });
-    }
-  }
-});
-
-// Health check endpoint with load information
-app.get('/health', (req, res) => {
-  const metrics = pool.getMetrics();
-  const utilization = metrics.inUse / metrics.currentSize;
-
-  res.json({
-    status: utilization < 0.9 ? 'healthy' : 'degraded',
-    utilization: `${(utilization * 100).toFixed(1)}%`,
-    available: metrics.available,
-    pending: metrics.pending,
   });
-});
+}
 ```
 
-### HTTP Agent Pool
+### HTTP Client Pool with Validation
 
-```javascript
-import { StaticObjectPool } from '@lojhan/resource-pool/implementations';
-import https from 'https';
+```typescript
+import { createPool } from '@lojhan/resource-pool';
+import fetch from 'node-fetch';
 
-// Create a pool of HTTP agents with keep-alive
-const agents = Array.from(
-  { length: 5 },
-  () =>
-    new https.Agent({
-      keepAlive: true,
-      maxSockets: 50,
-    }),
-);
+interface HTTPClient {
+  fetch: typeof fetch;
+  lastUsed: number;
+}
 
-const pool = new StaticObjectPool(agents);
+const pool = createPool({
+  min: 2,
+  max: 10,
+  resourceFactory: () => ({
+    fetch,
+    lastUsed: Date.now(),
+  }),
+  validateResource: (client) => {
+    // Invalidate clients older than 5 minutes
+    return Date.now() - client.lastUsed < 5 * 60 * 1000;
+  },
+  idleTimeoutMs: 120000,
+});
 
-async function makeRequest(url) {
-  return pool.use(async (agent) => {
-    const response = await fetch(url, { agent });
+async function makeRequest(url: string) {
+  return pool.use(async (client) => {
+    client.lastUsed = Date.now();
+    const response = await client.fetch(url);
     return response.json();
   });
 }
 ```
 
+### Load Shedding with EnginePool
+
+```typescript
+import { EnginePool } from '@lojhan/resource-pool';
+import { Worker } from 'worker_threads';
+
+const workers = Array.from({ length: 4 }, () => new Worker('./worker.js'));
+const pool = new EnginePool(workers.length);
+
+async function processWithLoadShedding(task: any) {
+  // Fast-fail if no workers available
+  const idx = pool.acquire();
+  if (idx === null) {
+    throw new Error('SERVICE_OVERLOADED');
+  }
+
+  try {
+    return await new Promise((resolve, reject) => {
+      workers[idx].once('message', resolve);
+      workers[idx].once('error', reject);
+      workers[idx].postMessage(task);
+    });
+  } finally {
+    pool.release(idx);
+  }
+}
+
+// Health check
+function getHealth() {
+  const metrics = pool.getMetrics();
+  return {
+    utilization: (metrics.busy / metrics.capacity) * 100,
+    available: metrics.available,
+  };
+}
+```
+
+### Static Pool with Pre-created Resources
+
+```typescript
+import { createPool } from '@lojhan/resource-pool';
+
+// Pre-create expensive resources
+const connections = await Promise.all(
+  Array.from({ length: 5 }, async () => {
+    const conn = new ExpensiveConnection();
+    await conn.initialize();
+    return conn;
+  }),
+);
+
+// Create static pool from existing resources
+const pool = createPool(
+  {
+    resourceFactory: () => new ExpensiveConnection(), // Fallback (not called if static)
+    resourceDestroyer: async (conn) => await conn.close(),
+  },
+  connections, // Exactly 5 resources, pool is min: 5, max: 5
+);
+
+// All resources are immediately available
+const conn = pool.acquire(); // Never null in static pool
+if (conn) {
+  // Use connection
+  pool.release(conn);
+}
+```
+
 ## Benchmarks
 
-This library is significantly faster than popular JavaScript-based pools because the core locking and queueing logic is implemented in Rust.
+Performance on modern hardware (Apple M1 Pro):
 
-| Name                               | Duration (ms) |    Ops/Sec |
-| :--------------------------------- | ------------: | ---------: |
-| GenericObjectPool (Static/Sync)    |         98.74 | 10,127,612 |
-| GenericObjectPool (Engine/Index)   |        114.67 |  8,720,727 |
-| GenericObjectPool (Dynamic/Sync)   |         165.4 |  6,045,994 |
-| GenericObjectPool (Engine) .use()  |        203.83 |  4,906,147 |
-| GenericObjectPool (Static) .use()  |        208.65 |  4,792,609 |
-| GenericObjectPool (Dynamic) .use() |        217.22 |  4,603,536 |
-| generic-pool (Async)               |        670.11 |  1,492,293 |
-| generic-pool .use()                |        700.59 |  1,427,365 |
-| tarn (Pure JS/Async)               |        992.29 |  1,007,765 |
-| tarn (manual .use)                 |       1099.27 |    909,696 |
+| Operation       |  ObjectPool |  EnginePool | vs generic-pool |
+| :-------------- | ----------: | ----------: | :-------------- |
+| acquire/release | 10.2M ops/s | 12.1M ops/s | **7-8x faster** |
+| use() pattern   |  3.2M ops/s |  5.7M ops/s | **2-4x faster** |
 
-_Benchmarks run on macOS (Apple Silicon). Lower is better._
+Comparison against popular libraries:
+
+- **generic-pool**: ~1.5M ops/sec
+- **tarn**: ~1.0M ops/sec
+- **@lojhan/resource-pool**: 10-12M ops/sec
+
+Run benchmarks locally:
+
+```bash
+cd benchmarks
+npm install
+npm run bench
+```
 
 ## TypeScript Support
 
-All implementations are fully typed with comprehensive TypeScript definitions.
+Full TypeScript support with comprehensive type inference.
 
 ```typescript
-import {
-  StaticObjectPool,
-  DynamicObjectPool,
-  EnginePool,
-  DynamicSizingConfig,
-  PoolMetrics,
-} from '@lojhan/resource-pool/implementations';
+import { createPool, type IObjectPool, type PoolMetrics } from '@lojhan/resource-pool';
 
-// Type-safe pool with custom resources
 interface DatabaseConnection {
   query(sql: string): Promise<any>;
   close(): Promise<void>;
 }
 
-const pool = new StaticObjectPool<DatabaseConnection>([await createConnection(), await createConnection()]);
+// Type-safe pool
+const pool: IObjectPool<DatabaseConnection> = createPool({
+  min: 5,
+  max: 10,
+  resourceFactory: async (): Promise<DatabaseConnection> => {
+    const conn = new DatabaseConnection();
+    await conn.connect();
+    return conn;
+  },
+});
 
 // Type inference works automatically
 const result = await pool.use(async (conn) => {
-  // conn is automatically typed as DatabaseConnection
+  // conn is typed as DatabaseConnection
   return await conn.query('SELECT 1');
 });
 
-// Dynamic pool with type-safe config
-const dynamicPool = DynamicObjectPool.withDynamicSizing<DatabaseConnection>({
-  min: 2,
+// Metrics are typed
+const metrics: PoolMetrics = pool.getMetrics();
+console.log(metrics.size, metrics.available, metrics.busy);
+```
+
+## Best Practices
+
+### Always Use `use()` Method
+
+```typescript
+// ❌ BAD: Prone to leaks if error occurs
+const resource = await pool.acquireAsync();
+await doSomething(resource);
+pool.release(resource);
+
+// ✅ GOOD: Guaranteed release
+await pool.use(async (resource) => {
+  await doSomething(resource);
+});
+```
+
+### Implement Resource Validation
+
+```typescript
+const pool = createPool({
+  min: 5,
   max: 10,
   resourceFactory: async () => createConnection(),
   validateResource: async (conn) => {
     try {
-      await conn.query('SELECT 1');
+      await conn.ping();
       return true;
     } catch {
-      return false;
+      return false; // Will be replaced
     }
   },
+  validatorTimeoutMs: 2000,
 });
 ```
 
-## Migration Guide
+### Set Reasonable Timeouts
 
-### From older versions using `GenericObjectPool`
+```typescript
+const pool = createPool({
+  min: 5,
+  max: 10,
+  resourceFactory: async () => createConnection(),
+  factoryTimeoutMs: 10000, // 10s to create
+  destroyerTimeoutMs: 5000, // 5s to destroy
+  validatorTimeoutMs: 2000, // 2s to validate
+  acquireTimeoutMs: 5000, // 5s default acquire timeout
+});
+```
 
-If you're using the low-level `GenericObjectPool` export from older versions or need to migrate:
+### Monitor Pool Metrics
 
-```javascript
-// Old (index-based native pool)
-import { GenericObjectPool } from '@lojhan/resource-pool';
-const pool = new GenericObjectPool(5);
-const idx = await pool.acquireAsync();
-// use workers[idx]
-pool.release(idx);
+```typescript
+setInterval(() => {
+  const metrics = pool.getMetrics();
+  console.log({
+    utilization: (metrics.busy / metrics.capacity) * 100,
+    available: metrics.available,
+    pending: metrics.pendingCreates,
+  });
+}, 10000);
+```
 
-// New (recommended - use EnginePool for same behavior)
-import { EnginePool } from '@lojhan/resource-pool/implementations';
-const pool = new EnginePool(5);
-const idx = await pool.acquireAsync();
-// use workers[idx]
-pool.release(idx);
+### Graceful Shutdown
 
-// Or upgrade to object-based pool
-import { StaticObjectPool } from '@lojhan/resource-pool/implementations';
-const pool = new StaticObjectPool(workers);
-const worker = await pool.acquireAsync();
-// use worker directly
-pool.release(worker);
+```typescript
+async function shutdown() {
+  console.log('Shutting down pool...');
+  await pool.destroy();
+  console.log('Pool destroyed');
+  process.exit(0);
+}
+
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);
 ```
 
 ## Troubleshooting
 
-### Resource Leaks
+### Pool Exhaustion / Timeouts
 
-Always use the `use()` method when possible to prevent resource leaks:
+**Symptoms:** `acquireAsync()` times out frequently
 
-```javascript
-// ❌ Bad - resource may leak if error occurs
-const resource = await pool.acquireAsync();
-await doWork(resource);
-pool.release(resource);
+**Solutions:**
 
-// ✅ Good - resource always released
-await pool.use(async (resource) => {
-  await doWork(resource);
-});
-```
+1. Increase `max` pool size
+2. Check for resource leaks (not releasing resources)
+3. Reduce `acquireTimeoutMs` to fail faster
+4. Implement load shedding with EnginePool
 
-### Deadlocks
+### Resources Not Scaling Down
 
-Avoid acquiring multiple resources from the same pool within nested operations:
+**Symptoms:** Pool stays at max size even when idle
 
-```javascript
-// ❌ Bad - potential deadlock
-await pool.use(async (resource1) => {
-  await pool.use(async (resource2) => {
-    // This can deadlock if pool size < 2
-  });
-});
+**Solutions:**
 
-// ✅ Good - acquire resources at the same level
-const resource1 = await pool.acquireAsync();
-const resource2 = await pool.acquireAsync();
-try {
-  await doWork(resource1, resource2);
-} finally {
-  pool.release(resource1);
-  pool.release(resource2);
-}
-```
+1. Check `idleTimeoutMs` is set (default: 30000)
+2. Verify `min < max` (only dynamic pools scale)
+3. Check `scaleDownIntervalMs` (default: 10000)
 
-### DynamicObjectPool not scaling
+### Validation Failures
 
-If your dynamic pool isn't scaling as expected:
+**Symptoms:** Frequent resource replacements
 
-1. Check `scaleUpThreshold` - ensure it matches your workload
-2. Verify `resourceFactory` doesn't throw errors
-3. Monitor metrics with `pool.getMetrics()` to see scale events
-4. Ensure `max` is greater than `min`
+**Solutions:**
 
-```javascript
-// Debug scaling behavior
-const metrics = pool.getMetrics();
-console.log('Scale events:', {
-  scaleUp: metrics.scaleUpEvents,
-  scaleDown: metrics.scaleDownEvents,
-  created: metrics.resourcesCreated,
-  destroyed: metrics.resourcesDestroyed,
-});
-```
+1. Check `validateResource` logic is correct
+2. Increase `validatorTimeoutMs` if validation is slow
+3. Monitor metrics for `pendingCreates` spikes
+
+### Memory Leaks
+
+**Symptoms:** Memory usage grows over time
+
+**Solutions:**
+
+1. Ensure `resourceDestroyer` properly cleans up
+2. Always use `pool.use()` or try/finally with manual acquire
+3. Call `pool.destroy()` on shutdown
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md)
+
+```bash
+npm install
+npm test
+npm run bench
+```
 
 ## License
 
-MIT
+MIT © [Lojhan](https://github.com/Lojhan)

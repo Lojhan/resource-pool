@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert';
-import { createPool, type PoolConfig } from '../../src/index';
+import { createPool } from '../../src/index';
 
 interface TestResource {
   id: number;
@@ -12,7 +12,7 @@ test('Feature - Resource validation in StaticObjectPool', async () => {
   let counter = 0;
   let validationCalls = 0;
 
-  const config: PoolConfig<TestResource> = {
+  const config = {
     min: 2,
     max: 2,
     resourceFactory: async () => ({
@@ -20,13 +20,13 @@ test('Feature - Resource validation in StaticObjectPool', async () => {
       healthy: true,
       destroyed: false,
     }),
-    validateResource: async (resource) => {
+    validateResource: async (resource: TestResource) => {
       validationCalls++;
       return resource.healthy;
     },
   };
 
-  const pool = await createPool(config);
+  const pool = createPool(config);
 
   const res = await pool.acquireAsync();
   assert(res !== null, 'Should acquire resource');
@@ -41,7 +41,7 @@ test('Feature - Invalid resource replacement in StaticObjectPool', async () => {
   let counter = 0;
   let recreationCount = 0;
 
-  const config: PoolConfig<TestResource> = {
+  const config = {
     min: 1,
     max: 1,
     resourceFactory: async () => {
@@ -52,12 +52,12 @@ test('Feature - Invalid resource replacement in StaticObjectPool', async () => {
         destroyed: false,
       };
     },
-    validateResource: async (resource) => {
+    validateResource: async (resource: TestResource) => {
       return resource.healthy;
     },
   };
 
-  const pool = await createPool(config);
+  const pool = createPool(config);
 
   // First acquire - should get unhealthy resource and recreate it
   const res1 = await pool.acquireAsync();
@@ -69,11 +69,11 @@ test('Feature - Invalid resource replacement in StaticObjectPool', async () => {
   await pool.destroy();
 });
 
-test('Feature - Invalid resource replacement in DynamicObjectPool', async () => {
+test('Feature - Invalid resource replacement in ObjectPool', async () => {
   let counter = 0;
   let destroyCount = 0;
 
-  const config: PoolConfig<TestResource> = {
+  const config = {
     min: 1,
     max: 2,
     resourceFactory: async () => ({
@@ -81,17 +81,17 @@ test('Feature - Invalid resource replacement in DynamicObjectPool', async () => 
       healthy: false,
       destroyed: false,
     }),
-    validateResource: async (resource) => {
+    validateResource: async (resource: TestResource) => {
       // First resource is always invalid, subsequent ones are valid
       return resource.id > 0;
     },
-    resourceDestroyer: async (resource) => {
+    resourceDestroyer: async (resource: TestResource) => {
       destroyCount++;
       resource.destroyed = true;
     },
   };
 
-  const pool = await createPool(config);
+  const pool = createPool(config);
 
   // Should recreate invalid resource
   const res = await pool.acquireAsync();
@@ -105,7 +105,7 @@ test('Feature - Invalid resource replacement in DynamicObjectPool', async () => 
 test('Feature - Custom resource destroyer', async () => {
   const destroyedResources: number[] = [];
 
-  const config: PoolConfig<TestResource> = {
+  const config = {
     min: 3,
     max: 3,
     resourceFactory: async () => ({
@@ -113,13 +113,23 @@ test('Feature - Custom resource destroyer', async () => {
       healthy: true,
       destroyed: false,
     }),
-    resourceDestroyer: async (resource) => {
+    resourceDestroyer: async (resource: TestResource) => {
       destroyedResources.push(Math.floor(resource.id * 1000));
       resource.destroyed = true;
     },
   };
 
-  const pool = await createPool(config);
+  const pool = createPool(config);
+
+  // Create resources first
+  const res1 = await pool.acquireAsync();
+  const res2 = await pool.acquireAsync();
+  const res3 = await pool.acquireAsync();
+
+  pool.release(res1);
+  pool.release(res2);
+  pool.release(res3);
+
   await pool.destroy();
 
   // Note: We can't exactly match IDs due to floating point, but we can check count
@@ -130,7 +140,7 @@ test('Feature - acquireAsync with timeout override default', async () => {
   let counter = 0;
   const defaultTimeout = 1000;
 
-  const config: PoolConfig<TestResource> = {
+  const config = {
     min: 1,
     max: 1,
     acquireTimeoutMs: defaultTimeout,
@@ -141,7 +151,7 @@ test('Feature - acquireAsync with timeout override default', async () => {
     }),
   };
 
-  const pool = await createPool(config);
+  const pool = createPool(config);
 
   // Acquire the single resource
   const res = await pool.acquireAsync();
@@ -165,7 +175,7 @@ test('Feature - acquireAsync with timeout override default', async () => {
 test('Feature - use() with custom timeout', async () => {
   let counter = 0;
 
-  const config: PoolConfig<TestResource> = {
+  const config = {
     min: 1,
     max: 1,
     resourceFactory: async () => ({
@@ -175,7 +185,7 @@ test('Feature - use() with custom timeout', async () => {
     }),
   };
 
-  const pool = await createPool(config);
+  const pool = createPool(config);
 
   const result = await pool.use(
     async (resource) => {
@@ -192,7 +202,7 @@ test('Feature - use() with custom timeout', async () => {
 test('Feature - Sync acquire returns null when exhausted', async () => {
   let counter = 0;
 
-  const config: PoolConfig<TestResource> = {
+  const config = {
     min: 1,
     max: 1,
     resourceFactory: async () => ({
@@ -202,8 +212,13 @@ test('Feature - Sync acquire returns null when exhausted', async () => {
     }),
   };
 
-  const pool = await createPool(config);
+  const pool = createPool(config);
 
+  // First create the resource
+  const initial = await pool.acquireAsync();
+  pool.release(initial);
+
+  // Now test sync acquire
   const res = pool.acquire();
   assert(res !== null, 'Should acquire resource');
 
@@ -221,7 +236,7 @@ test('Feature - Sync acquire returns null when exhausted', async () => {
 test('Feature - Validation can throw (error is ignored)', async () => {
   let counter = 0;
 
-  const config: PoolConfig<TestResource> = {
+  const config = {
     min: 1,
     max: 1,
     resourceFactory: async () => ({
@@ -234,7 +249,7 @@ test('Feature - Validation can throw (error is ignored)', async () => {
     },
   };
 
-  const pool = await createPool(config);
+  const pool = createPool(config);
 
   // Should not throw, validation error is caught
   const res = await pool.acquireAsync();
@@ -247,7 +262,7 @@ test('Feature - Validation can throw (error is ignored)', async () => {
 test('Feature - Destroyer errors propagate on destroy', async () => {
   let counter = 0;
 
-  const config: PoolConfig<TestResource> = {
+  const config = {
     min: 1,
     max: 1,
     resourceFactory: async () => ({
@@ -258,9 +273,14 @@ test('Feature - Destroyer errors propagate on destroy', async () => {
     resourceDestroyer: async () => {
       throw new Error('Destroy failed');
     },
+    bubbleDestroyerErrors: true,
   };
 
-  const pool = await createPool(config);
+  const pool = createPool(config);
+
+  // Ensure resource is created by acquiring and releasing
+  const resource = await pool.acquireAsync();
+  pool.release(resource);
 
   // Destroy will fail if destroyer throws
   await assert.rejects(

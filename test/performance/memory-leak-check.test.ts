@@ -11,7 +11,6 @@ import process from 'node:process';
 import { test } from 'node:test';
 import { setTimeout } from 'node:timers/promises';
 import { createPool } from '../../src';
-import { StaticObjectPool } from '../../src/static-object-pool';
 
 /**
  * Calculates the slope of the line of best fit (Linear Regression).
